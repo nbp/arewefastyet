@@ -33,15 +33,7 @@ def v8_octane(shell, env, args):
     with utils.chdir('octane'):
         return _v8(shell, env, args)
 
-def _v8(shell, env, args):
-    full_args = [shell]
-    if args:
-        full_args.extend(args)
-    full_args.append('run.js')
-
-    p = subprocess.Popen(full_args, stdout=subprocess.PIPE, env=env)
-    output = p.communicate()[0]
-
+def v8_filter(output):
     tests = []
     lines = output.splitlines()
 
@@ -54,28 +46,24 @@ def _v8(shell, env, args):
                 name = "__total__"
             tests.append({ 'name': name, 'time': score})
             print(score + '    - ' + name)
+            if name[0:5] == "Score":
+                break
 
     return tests
 
-def _sunspider(suite, runs, shell, env, args):
-    if args != None:
-        args = '--args=' + ' '.join(args)
-    else:
-        args = ''
 
-    if suite == "assorted":
-        p = subprocess.Popen(["hg", "pull", "-u"], stdout=subprocess.PIPE)
-        p.communicate()
+def _v8(shell, env, args):
+    full_args = [shell]
+    if args:
+        full_args.extend(args)
+    full_args.append('run.js')
 
-    p = subprocess.Popen(["./sunspider",
-                          "--shell=" + shell,
-                          "--runs=" + str(runs),
-                          "--suite=" + suite,
-                          args],
-                          stdout=subprocess.PIPE,
-                          env=env)
+    p = subprocess.Popen(full_args, stdout=subprocess.PIPE, env=env)
     output = p.communicate()[0]
 
+    return v8_filter(output);
+
+def sunspider_filter(output):
     tests = []
 
     lines = output.splitlines()
@@ -98,6 +86,28 @@ def _sunspider(suite, runs, shell, env, args):
         raise Exception("output marker not found")
 
     return tests
+
+
+def _sunspider(suite, runs, shell, env, args):
+    if args != None:
+        args = '--args=' + ' '.join(args)
+    else:
+        args = ''
+
+    if suite == "assorted":
+        p = subprocess.Popen(["hg", "pull", "-u"], stdout=subprocess.PIPE)
+        p.communicate()
+
+    p = subprocess.Popen(["./sunspider",
+                          "--shell=" + shell,
+                          "--runs=" + str(runs),
+                          "--suite=" + suite,
+                          args],
+                          stdout=subprocess.PIPE,
+                          env=env)
+    output = p.communicate()[0]
+
+    return sunspider_filter(output)
 
 Benchmarks = { 
                'v8real': v8_v8,
