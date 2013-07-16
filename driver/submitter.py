@@ -46,3 +46,25 @@ class Submitter:
         url += '&runid=' + str(self.runID)
         urllib2.urlopen(url)
 
+class FakeSubmitter:
+    def __init__(self, conf):
+        return
+
+    def Start(self):
+        self.lastSuite = None
+
+    def AddEngine(self, name, cset):
+        print "Engine: %s (%s):" % (name, str(cset))
+
+    def AddTests(self, tests, suite, mode):
+        for test in tests:
+            self.SubmitTest(test['name'], suite, mode, test['time'])
+
+    def SubmitTest(self, name, suite, mode, time):
+        if suite != self.lastSuite:
+            print "  Suite: %s (%s)" % (suite, mode)
+            self.lastSuite = suite
+        print "    %s:\t%s" % (name, str(time))
+
+    def Finish(self, status):
+        return
