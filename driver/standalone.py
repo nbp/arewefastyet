@@ -6,14 +6,24 @@ import benchmark
 import utils
 import subprocess
 
+if len(sys.argv) < 3:
+    raise Exception('Expect the changeset and config file.')
+
+changeset = sys.argv[1]
+configFile = sys.argv[2]
+engine = sys.argv[3]
+b2gDir = sys.argv[4]
+
 
 filterOutput = re.compile("Shell-like \w+ results:((?:.*\n)*)End of shell-like result.", re.MULTILINE)
 def runGaiaTest(test):
-    args = ['./run-benchmark.sh', test]
+    args = ['./run-benchmark.sh', b2gDir, test]
 
     nb = 0
     output = ""
     m = None
+
+    # Retry because we might fail to connect to the wifi
     while nb < 10:
         try:
             output = utils.Run(args)
@@ -27,11 +37,6 @@ def runGaiaTest(test):
         if nb == 10:
             raise Exception("Fail to execute")
 
-
-if len(sys.argv) < 2:
-    raise Exception('Expect the changeset and config file.')
-
-changeset = sys.argv[1]
 
 benchmarks = {
     'octane': {
@@ -49,7 +54,7 @@ benchmarks = {
 }
 
 config = ConfigParser.RawConfigParser()
-config.read(sys.argv[2])
+config.read(configFile)
 
 if config.get('main', 'local') == 'yes':
     submit = submitter.FakeSubmitter(config)
@@ -57,13 +62,12 @@ else:
     submit = submitter.Submitter(config)
 
 submit.Start()
-
-submit.AddEngine('browser_im_bc', changeset)
+submit.AddEngine(engine, changeset)
 for suite in benchmarks.keys():
     try:
         output = runGaiaTest(benchmarks[suite]['name'])
         tests = benchmarks[suite]['filter'](output)
-        submit.AddTests(tests, suite, 'browser_im_bc')
+        submit.AddTests(tests, suite, engine)
     except Exception as e:
         print e
 
