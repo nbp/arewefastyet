@@ -189,6 +189,10 @@ checkout() {
 }
 
 checkoutByGeckoRev() {
+  if test -z "$2"; then
+    reportStage "Checkout By Gecko Sha1 ($1)"
+  fi
+
   cleanBeforeCheckout
 
   # Checkout the defined version of Gecko
@@ -205,7 +209,7 @@ checkoutByGeckoRev() {
 
 checkoutByGeckoChangeset() {
   # Get the date from a revision:
-  #   git log -n 1 --pretty=format:%cd --date=iso $rev  
+  #   git log -n 1 --pretty=format:%cd --date=iso $rev
   reportStage "Checkout By Gecko Changeset ($1)"
 
   checkoutByGeckoRev $(changesetToCommit "$1") false
@@ -389,24 +393,63 @@ update() {
 
 idle() {
   local isIdle=true
-  local bisectFile=$B2G_DIR/.hgbisect-gecko
-  if test -e $bisectFile && test -n "$(cat "$bisectFile")"; then
+  local bisectFile=
+  local bisectVCS=
+  local checkoutStrategy=
+  local lastGeckoWorktree=
+  local bisectWithPatches=$B2G_DIR/.bisect-patches
+
+  local hgBisectFile=$B2G_DIR/.bisect-gecko.hg
+  local gitBisectFile=$B2G_DIR/.bisect-gecko.git
+  if test -e $hgBisectFile && test -n "$(cat "$hgBisectFile")"; then
+    bisectVCS=hg;
+    bisectFile=$hgBisectFile
+    checkoutStrategy=checkoutByGeckoChangeset
+  elif test -e $gitBisectFile && test -n "$(cat "$gitBisectFile")"; then
+    bisectVCS=git;
+    bisectFile=$gitBisectFile
+    checkoutStrategy=checkoutByGeckoRev
+  fi
+
+  if test -n "$bisectVCS"; then
     isIdle=false;
     lastGeckoWorktree=$(geckoGitInfo)
-
     mkdir -p $B2G_DIR/bisect.gecko
     testRev=$(head -n 1 "$bisectFile")
-    checkoutByGeckoChangeset "$testRev"
+
     while true; do
+      $checkoutStrategy "$testRev"
+
+      # Apply series of patches to the different trees.
+      if test -d $bisectWithPatches; then
+	for file in : $(cd $bisectWithPatches; find . -type f -name '*.patch'); do
+	    test "$file" = : && continue;
+            reportStage "Apply patch $file."
+	    patch -p1 -d $B2G_DIR/$(dirname $file) < $bisectWithPatches/$file
+	done
+      fi
+
+      # Build, flash, create an exportable image, and run the benchmarks.
       build || break
       flash || break
-      saveForLater "$B2G_DIR/bisect.gecko/hg-$testRev.xz"
+      saveForLater "$B2G_DIR/bisect.gecko/$bisectVCS-$testRev.xz"
       setupHostForBenchmark
       benchAndPrint || break
       break
-    done 2>&1 | tee $B2G_DIR/bisect.gecko/hg-"$testRev".log
+    done 2>&1 | tee $B2G_DIR/bisect.gecko/$bisectVCS-$testRev.log
     sed -i '1 d' "$bisectFile"
-    checkoutByGeckoRev "$lastGeckoWorktree"
+
+    # Undo the modifications made by the patches.
+    if test -d $bisectWithPatches; then
+	for file in : $(cd $bisectWithPatches; find . -type f -name '*.patch'); do
+	    test "$file" = : && continue;
+	    cd $B2G_DIR/$(dirname $file)
+	    git reset --hard
+	done
+    fi
+
+    # Restore the repository to its original state.
+    checkoutByGeckoRev "$lastGeckoWorktree" false
   fi
 
   if $isIdle; then
@@ -426,6 +469,12 @@ loop() {
     else
       idle
     fi
+  done
+}
+
+idleloop() {
+  while true; do
+    idle
   done
 }
 
