@@ -135,9 +135,11 @@ EOF
 }
 
 updateManifest() {
-  cd $B2G_DIR/.repo/manifests
-  sed -f ~/update-manifest.sed unagi.xml > awsa-unagi.xml
-  ln -sf $B2G_DIR/.repo/manifests/awsa-unagi.xml $B2G_DIR/.repo/manifest.xml
+  if test -e $PERSO_SETUP_DIR/update-manifest.sed; then
+    cd $B2G_DIR/.repo/manifests
+    sed -f $PERSO_SETUP_DIR/update-manifest.sed unagi.xml > awsa-unagi.xml
+    ln -sf $B2G_DIR/.repo/manifests/awsa-unagi.xml $B2G_DIR/.repo/manifest.xml
+  fi
 }
 
 ##
