@@ -39,6 +39,17 @@ reportStage() {
 "
 }
 
+# Utilities to help finding the corresponding changesets between mercurial and gecko.
+changesetToCommit() {
+#    ssh git@hydra changeset-to-commit "$1"
+    ssh npierron@people.mozilla.org '~/changeset-to-commit.sh' "$1"
+}
+
+commitToChangeset() {
+#    ssh git@hydra commit-to-changeset "$1"
+    ssh npierron@people.mozilla.org '~/commit-to-changeset.sh' "$1"
+}
+
 # Contains the identifer of the phone which is used by adb and
 # fastboot to identify the right device when flashing it and running
 # benchmarks on it.
@@ -195,7 +206,7 @@ checkoutByGeckoChangeset() {
   #   git log -n 1 --pretty=format:%cd --date=iso $rev  
   reportStage "Checkout By Gecko Changeset ($1)"
 
-  checkoutByGeckoRev $(ssh git@hydra changeset-to-commit "$1")
+  checkoutByGeckoRev $(changesetToCommit "$1") false
 }
 
 clobber() {
@@ -327,7 +338,7 @@ info() {
   # The git-hg-bridge of hydra provides a command to convert git sha1
   # into mercurial changeset. It is easier for Gecko's developers to
   # deal with mercurial changeset.
-  ssh git@hydra commit-to-changeset $geckoGit
+  commitToChangeset $geckoGit
 }
 
 ##
@@ -419,7 +430,7 @@ loop() {
 ##
 ## Call the function which name is given as argument.
 ##
-if test "$1" = checkoutByGeckoChangeset -o "$1" = saveForLater; then
+if test "$1" = checkoutByGeckoChangeset -o "$1" = saveForLater -o "$1" = changesetToCommit -o "$1" = commitToChangeset; then
   # Used for testing.
   "$@";
 else
