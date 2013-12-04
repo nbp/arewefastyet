@@ -266,6 +266,10 @@ setupHostForBenchmark() {
   python setup.py develop --prefix=$INSTALL_DIR -N
 }
 
+countRemoteHosts() {
+  test $(run_adb shell cat /etc/hosts | grep -c $1) -eq $2
+}
+
 setupForBenchmark() {
   cd $SHARED_SETUP_DIR
 
@@ -278,11 +282,18 @@ setupForBenchmark() {
   # of where the benchmarks are hosted, as we have a local copy of the
   # benchmarks which are hosted on a low-latency network.
   if test "$(readlink $TESTVARS)" = "$(basename $TESTVARS).awfy"; then
-      if run_adb shell cat /etc/hosts | grep people.mozilla.org > /dev/null; then
+      if countRemoteHosts 192.168.1.51 1 && countRemoteHosts people.mozilla.org 1; then
 	  : # the file already contain the line, no need for updates.
       else
-	  # Append a redirect to the hosts file.
-	  run_adb shell 'mount -o remount,rw /system ; echo 192.168.1.51 people.mozilla.com >> /etc/hosts ; mount -o remount,ro /system'
+	  # Update the hosts file to redirect load.
+	  run_adb shell 'mount -o remount,rw /system ; echo 127.0.0.1 localhost > /etc/hosts ; echo 192.168.1.51 people.mozilla.com >> /etc/hosts ; mount -o remount,ro /system'
+      fi
+  elif test "$(readlink $TESTVARS)" = "$(basename $TESTVARS).paris"; then
+      if countRemoteHosts 10.243.25.193 1 && countRemoteHosts people.mozilla.org 1; then
+	  : # the file already contain the line, no need for updates.
+      else
+	  # Update the hosts file to redirect load.
+	  run_adb shell 'mount -o remount,rw /system ; echo 127.0.0.1 localhost > /etc/hosts ; echo 10.243.25.193 people.mozilla.com >> /etc/hosts ; mount -o remount,ro /system'
       fi
   else
       # Reset the hosts file if we changed the network settings.
