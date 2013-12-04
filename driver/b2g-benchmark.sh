@@ -238,12 +238,23 @@ flash() {
 
 saveForLater() {
   local target="$1"
-  cd $B2G_DIR/..
-  tar cavf $target \
+  test -e $target && rm $target;
+
+  # Neutralize the paths for all scripts.  These scripts must be run
+  # in the current directory.  This archive includes the symbols as it
+  # only increate the size by 25%, and it is useful to have a
+  # debuggable image.
+  sed "s,$B2G_DIR,\$(pwd),g" $B2G_DIR/.config > $B2G_DIR/out/.config
+  tar -cavf $target --show-transformed-names \
+      -P --transform="s,$B2G_DIR,$(basename $B2G_DIR)," \
+      $B2G_DIR/out/target/product/*/system/sources.xml \
+      $B2G_DIR/out/target/product/*/*.img \
+      $B2G_DIR/out/target/product/*/symbols \
+      $B2G_DIR/objdir-gecko/dist/bin \
+      --transform="s,out/.config,.config," \
       $B2G_DIR/flash.sh \
       $B2G_DIR/load-config.sh \
-      $B2G_DIR/out/target/product/*/system/sources.xml \
-      $B2G_DIR/out/target/product/*/*.img
+      $B2G_DIR/out/.config
 }
 
 setupHostForBenchmark() {
@@ -475,6 +486,8 @@ loop() {
     if update || test \! -e $B2G_DIR/out; then
       build || continue
       flash || continue
+      # Save an image of the last build.
+      saveForLater "$B2G_DIR/out/git-lastest.xz" >/dev/null &
       setupHostForBenchmark
       benchAndUpload
     else
