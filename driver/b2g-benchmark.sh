@@ -340,9 +340,17 @@ countRemoteHosts() {
 setupForBenchmark() {
   cd $SHARED_SETUP_DIR
 
+  # wait for the device to appear under adb.
+  run_adb wait-for-device
+
+  # Restart Gecko processes, and reboot in order to reset the wifi
+  # driver which are frequently failing unless the phone is fully
+  # restarted.
+  run_adb reboot
+  run_adb wait-for-device
+
   # wait until the device can answer with the remote debugger
   # protocol.
-  run_adb wait-for-device
   sleep 10
 
   # If We are using the awfy network then we need to set the address
@@ -396,7 +404,7 @@ benchAndUpload() {
 
   reportStage Benchmark and Upload
   setupForBenchmark
-  python $AWFY_DRIVER $(info) $AWFY_CONFIG  $engine $B2G_DIR
+  python $AWFY_DRIVER $(info) $AWFY_CONFIG  $engine $B2G_DIR 2>&1 | tee
 }
 
 benchAndPrint() {
@@ -404,7 +412,7 @@ benchAndPrint() {
 
   reportStage Benchmark and Print
   setupForBenchmark
-  python $AWFY_DRIVER $(info) $LOCAL_AWFY_CONFIG $engine $B2G_DIR
+  python $AWFY_DRIVER $(info) $LOCAL_AWFY_CONFIG $engine $B2G_DIR 2>&1 | tee
 }
 
 geckoGitInfo() {
