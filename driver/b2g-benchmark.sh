@@ -79,6 +79,7 @@ LOCAL_PORT_FILE=$PERSO_SETUP_DIR/marionette.port
 # benchmarks. This is shared because it is useful to be able to switch
 # quickly from one wifi to another.
 TESTVARS=$SHARED_SETUP_DIR/bench-testvars.json
+WIFINET=$SHARED_SETUP_DIR/wifi.server.network
 
 # This configuration file inform the standalone driver of AWFY how to
 # upload results.
@@ -278,7 +279,7 @@ setupHostForBenchmark() {
 }
 
 countRemoteHosts() {
-  test $(run_adb shell cat /etc/hosts | grep -c $1) -eq $2
+  test "$(run_adb shell cat /etc/hosts | grep -c $1)" -eq $2
 }
 
 setupForBenchmark() {
@@ -292,19 +293,13 @@ setupForBenchmark() {
   # If We are using the awfy network then we need to set the address
   # of where the benchmarks are hosted, as we have a local copy of the
   # benchmarks which are hosted on a low-latency network.
-  if test "$(readlink $TESTVARS)" = "$(basename $TESTVARS).awfy"; then
-      if countRemoteHosts 192.168.1.51 1 && countRemoteHosts people.mozilla.org 1; then
+  if test -e "$WIFINET" && test -n "$(cat "$WIFINET")"; then
+      local netip=$(ip -o -4 addr list $(cat "$WIFINET") | awk '{print $4}' | cut -d/ -f1)
+      if countRemoteHosts "$netip" 1 && countRemoteHosts people.mozilla.org 1; then
 	  : # the file already contain the line, no need for updates.
       else
 	  # Update the hosts file to redirect load.
-	  run_adb shell 'mount -o remount,rw /system ; echo 127.0.0.1 localhost > /etc/hosts ; echo 192.168.1.51 people.mozilla.com >> /etc/hosts ; mount -o remount,ro /system'
-      fi
-  elif test "$(readlink $TESTVARS)" = "$(basename $TESTVARS).paris"; then
-      if countRemoteHosts 10.243.25.193 1 && countRemoteHosts people.mozilla.org 1; then
-	  : # the file already contain the line, no need for updates.
-      else
-	  # Update the hosts file to redirect load.
-	  run_adb shell 'mount -o remount,rw /system ; echo 127.0.0.1 localhost > /etc/hosts ; echo 10.243.25.193 people.mozilla.com >> /etc/hosts ; mount -o remount,ro /system'
+	  run_adb shell 'mount -o remount,rw /system ; echo 127.0.0.1 localhost > /etc/hosts ; echo '"$netip"' people.mozilla.com >> /etc/hosts ; mount -o remount,ro /system'
       fi
   else
       # Reset the hosts file if we changed the network settings.
@@ -313,7 +308,8 @@ setupForBenchmark() {
       fi
   fi
 
-  # setup for the benchmark.
+  # Gecko opened the port 2828 on the phone, we listen on a local port
+  # to forward connections of Marionette.
   local port=$(cat $LOCAL_PORT_FILE)
   run_adb forward tcp:$port tcp:2828
 
