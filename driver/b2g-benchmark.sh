@@ -56,19 +56,30 @@ commitToChangeset() {
 FASTBOOT_SERIAL_FILE=$PERSO_SETUP_DIR/fastboot.serial
 FASTBOOT_SERIAL_NO=$(cat $FASTBOOT_SERIAL_FILE)
 
-run_adb()
-{
+ADB=adb
+run_adb() {
+    test -n "$ADB_FLAGS" || find_device_name
     $ADB $ADB_FLAGS $@ | tr -d '\r'
 }
 
-ADB=adb
 ADB_FLAGS=
-if test -e $FASTBOOT_SERIAL_FILE; then
+FASTBOOT_FLAGS=
+find_device_name() {
+  if test -e $FASTBOOT_SERIAL_FILE; then
     if $ADB -s $FASTBOOT_SERIAL_NO shell "echo Device $FASTBOOT_SERIAL_NO found."; then
-	ADB_FLAGS="-s $FASTBOOT_SERIAL_NO"
+      ADB_FLAGS="-s $FASTBOOT_SERIAL_NO"
+      FASTBOOT_FLAGS="-s $FASTBOOT_SERIAL_NO"
+    else
+      echo "Error: Device $FASTBOOT_SERIAL_NO not found!"
+      exit 1
     fi
-fi
+  else
+    echo "Error: Device identifier file $FASTBOOT_SERIAL_FILE does not exists!"
+    exit 1
+  fi
+}
 
+find_device_name
 
 # Local port on which the remote debugger protocol of the phone is
 # forwarded.  This is used by marionette tests to command and inspect
@@ -265,9 +276,10 @@ build() {
 }
 
 flash() {
-  reportStage Flash
+  reportStage "Flash $ADB_FLAGS"
   cd $B2G_DIR
-  ./flash.sh $ADB_FLAGS
+  test -n "$ADB_FLAGS" || find_device_name
+  /bin/bash -x ./flash.sh $ADB_FLAGS
 }
 
 saveForLater() {
