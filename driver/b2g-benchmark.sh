@@ -310,17 +310,27 @@ setupHostForBenchmark() {
   mkdir -p $INSTALL_DIR
   mkdir -p $INSTALL_DIR/lib/python2.7/site-packages
 
-  # Install all marionette updates.
-  find $B2G_DIR/gecko/testing/ -name setup.py | \
-      while read path; do
-          cd $(dirname $path);
-	  python setup.py develop --prefix=$INSTALL_DIR -N
-      done
+  # Install all marionette & gaia-ui-tests updates
+  local setupPies="$(
+      find $B2G_DIR/gecko/testing/ -name setup.py;
+      find $B2G_DIR/$(cat $PERSO_SETUP_DIR/gaia-ui-tests.path)/gaia-ui-tests/ -name setup.py
+  )"
 
-  # Update gaia-ui-tests
-  cd $GAIA_UI_TESTS
-  git pull origin bench
-  python setup.py develop --prefix=$INSTALL_DIR -N
+  for path in $setupPies; do
+      cd $(dirname $path);
+
+      test -e ./requirements.txt && \
+	  mv ./requirements.txt ./requirements.txt.old && \
+	  sed  ./requirements.txt.old > ./requirements.txt '
+            s/marionette_client==.*/marionette_client/;
+            s/^\(moz.*\)[<=>][<=>][0-9.]*/\1/;
+          '
+
+      python setup.py develop --prefix=$INSTALL_DIR -N || true
+
+      test -e ./requirements.txt && \
+	  mv ./requirements.txt.old ./requirements.txt
+  done
 }
 
 countRemoteHosts() {
