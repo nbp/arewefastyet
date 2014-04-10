@@ -40,16 +40,19 @@ def runGaiaTest(test):
 
 benchmarks = {
     'octane': {
-        'name' : 'octane',
-        'filter' : benchmark.v8_filter
+        'name' : 'octane2',
+        'filter' : benchmark.v8_filter,
+        'output' : None
     },
     'ss': {
         'name' : 'sunspider',
-        'filter' : benchmark.sunspider_filter
+        'filter' : benchmark.sunspider_filter,
+        'output' : None
     },
     'kraken': {
         'name' : 'kraken',
-        'filter' : benchmark.sunspider_filter
+        'filter' : benchmark.sunspider_filter,
+        'output' : None
     }
 }
 
@@ -61,14 +64,21 @@ if config.get('main', 'local') == 'yes':
 else:
     submit = submitter.Submitter(config)
 
-submit.Start()
-submit.AddEngine(engine, changeset)
+# Run benchmarks, filter and collect outputs.
 for suite in benchmarks.keys():
     try:
         output = runGaiaTest(benchmarks[suite]['name'])
-        tests = benchmarks[suite]['filter'](output)
-        submit.AddTests(tests, suite, engine)
+        benchmarks[suite]['output'] = benchmarks[suite]['filter'](output)
     except Exception as e:
+        benchmarks[suite]['output'] = None
         print e
+
+# Submit the request to the remote DB.
+submit.Start()
+submit.AddEngine(engine, changeset)
+for suite in benchmarks.keys():
+    tests = benchmarks[suite]['output']
+    if tests is not None:
+        submit.AddTests(tests, suite, engine)
 
 submit.Finish(1)
