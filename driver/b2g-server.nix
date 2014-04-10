@@ -3,14 +3,19 @@
 with pkgs.lib;
 
 let
+  setupDir = "/home/awsa";
+
   awfyService = name: dir: {
     description = "Are We Fast Yet daemon (${name})";
     wantedBy = [ "multi-user.target" ];
     stopIfChanged = true;
     path = [ ];
+    environment = {
+      SHARED_SETUP_DIR = setupDir;
+    };
 
     serviceConfig = {
-      ExecStart = "/home/awsa/run-chroot.sh './run-benchmark.sh ${dir} loop'";
+      ExecStart = "${setupDir}/run-chroot.sh '${setupDir}/arewefastyet/driver/b2g-benchmark.sh ${dir} loop'";
       Restart = "always";
       Type = "simple";
       KillMode = "control-group";
@@ -20,12 +25,13 @@ in
 
 {
   fileSystems = {
-    # Check devices result for Are We Fast Yet?
-    "/home/awsa" = { label = "awsa"; neededForBoot = true; };
+    # Mount the partition which is hosting all trees and the chroot
+    # used to build and flash the phones.
+    "/home/awsa" = { label = "awsa"; };
   };
 
-  users.extraUsers = [
-    { name = "awsa";
+  users.extraUsers = {
+    awsa = {
       group = "wheel";
       uid = 29998;
       description = "Are We Fast Yet";
@@ -33,7 +39,7 @@ in
       useDefaultShell = true;
       createHome = true;
     }
-  ];
+  };
 
   # Detect the device in normal execution mode and also when it is flashed.
   services.udev.extraRules = ''
@@ -44,14 +50,14 @@ in
   # Start the adb daemon.
   # pkgs.androidenv.platformTools
 
-  systemd.services.arewefastyet-normal = awfyService "normal" "/home/awsa/unagi/B2G";
-  systemd.services.arewefastyet-ggc = awfyService "ggc" "/home/awsa/unagi/ggc-b2g";
-  systemd.services.arewefastyet-aurora = awfyService "aurora" "/home/awsa/unagi/aurora-b2g";
+  systemd.services.arewefastyet-normal = awfyService "normal" "${setupDir}/unagi/B2G";
+  systemd.services.arewefastyet-ggc = awfyService "ggc" "${setupDir}/unagi/ggc-b2g";
+  systemd.services.arewefastyet-aurora = awfyService "aurora" "${setupDir}/unagi/aurora-b2g";
 
   networking.firewall.allowedTCPPorts = [ 80 ];
   services.httpd = {
     enable = true;
     adminAddr = "npierron@mozilla.com";
-    servedDirs = [ { dir = "/home/awsa/people.mozilla.org"; urlPath = "/"; } ];
+    servedDirs = [ { dir = "${setupDir}/people.mozilla.org"; urlPath = "/"; } ];
   };
 }
