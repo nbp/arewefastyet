@@ -444,6 +444,11 @@ octane() {
   runBenchmark $BROWSER_BENCHMARK/test_bench_octane.py
 }
 
+octane2() {
+  reportStage Run Octane 2.0
+  runBenchmark $BROWSER_BENCHMARK/test_bench_octane2.py
+}
+
 sunspider() {
   reportStage Run Sunspider
   runBenchmark $BROWSER_BENCHMARK/test_bench_sunspider.py
