@@ -146,11 +146,41 @@ updateManifest() {
 ##
 ## Functions used to wrap around the building process of B2G.
 ##
+
+# Apply all patches which are in the given directory.  The directory
+# into which patches are located is used to decide which repository
+# has to be patched.
+applyPatches() {
+  local patchDir="$1"
+  if test -d $patchDir; then
+    for file in : $(cd $patchDir; find . -type f -name '*.patch' | sort); do
+      test "$file" = : && continue;
+      reportStage "Apply patch $file."
+      patch -p1 -d $B2G_DIR/$(dirname $file) < $patchDir/$file
+    done
+  fi
+}
+
+undoPatches() {
+  local patchDir="$1"
+  if test -d $patchDir; then
+    for file in : $(cd $patchDir; find . -type f -name '*.patch' | sort -r); do
+      test "$file" = : && continue;
+      cd $B2G_DIR/$(dirname $file)
+      # git clean -xqfd
+      git reset --hard
+    done
+  fi
+}
+
 cleanBeforeCheckout() {
   # Pull repository changes.
   cd $B2G_DIR/.repo/manifests
   git pull
   updateManifest
+
+  # Reset all repositories which have been patched.
+  undoPatches $PERSO_SETUP_DIR/patches
 
   # Clean-up any mess which might have been added by any commit modifying the sources.
   cd $B2G_DIR/gecko
@@ -166,6 +196,9 @@ cleanBeforeCheckout() {
 }
 
 cleanAfterCheckout() {
+  # Apply patches which are not yet accepted in the tree.
+  applyPatches $PERSO_SETUP_DIR/patches
+
   # The silence fall.
   # http://blog.ginzburgconsulting.com/wp-content/uploads/2013/02/silent.ogg
   # https://github.com/mozilla-b2g/gaia/commit/0ec2a2558cf41da4a2bf52bf6a550e5e2293602c
@@ -362,7 +395,7 @@ info() {
   # The git-hg-bridge of hydra provides a command to convert git sha1
   # into mercurial changeset. It is easier for Gecko's developers to
   # deal with mercurial changeset.
-  commitToChangeset $geckoGit
+  commitToChangeset "$geckoGit"
 }
 
 ##
@@ -409,6 +442,7 @@ update() {
   fi
 }
 
+canUploadBenchmarks=false
 idle() {
   local isIdle=true
   local bisectFile=
@@ -419,6 +453,7 @@ idle() {
 
   local hgBisectFile=$B2G_DIR/.bisect-gecko.hg
   local gitBisectFile=$B2G_DIR/.bisect-gecko.git
+  local bisectRunTests=$B2G_DIR/.bisect-run-tests
   if test -e $hgBisectFile && test -n "$(cat "$hgBisectFile")"; then
     bisectVCS=hg;
     bisectFile=$hgBisectFile
@@ -439,32 +474,23 @@ idle() {
       $checkoutStrategy "$testRev"
 
       # Apply series of patches to the different trees.
-      if test -d $bisectWithPatches; then
-	for file in : $(cd $bisectWithPatches; find . -type f -name '*.patch'); do
-	    test "$file" = : && continue;
-            reportStage "Apply patch $file."
-	    patch -p1 -d $B2G_DIR/$(dirname $file) < $bisectWithPatches/$file
-	done
-      fi
+      applyPatches "$bisectWithPatches"
 
       # Build, flash, create an exportable image, and run the benchmarks.
       build || break
       flash || break
+      canUploadBenchmarks=false
       saveForLater "$B2G_DIR/bisect.gecko/$bisectVCS-$testRev.xz"
-      setupHostForBenchmark
-      benchAndPrint || break
+      if test -e $bisectRunTests; then
+        setupHostForBenchmark
+        benchAndPrint || break
+      fi
       break
     done 2>&1 | tee $B2G_DIR/bisect.gecko/$bisectVCS-$testRev.log
     sed -i '1 d' "$bisectFile"
 
     # Undo the modifications made by the patches.
-    if test -d $bisectWithPatches; then
-	for file in : $(cd $bisectWithPatches; find . -type f -name '*.patch'); do
-	    test "$file" = : && continue;
-	    cd $B2G_DIR/$(dirname $file)
-	    git reset --hard
-	done
-    fi
+    undoPatches "$bisectWithPatches"
 
     # Restore the repository to its original state.
     checkoutByGeckoRev "$lastGeckoWorktree" false
@@ -472,7 +498,12 @@ idle() {
 
   if $isIdle; then
     echo "$$: Wait for modifications"
-    sleep 300
+    if $canUploadBenchmarks; then
+      setupHostForBenchmark
+      benchAndUpload
+    else
+      sleep 300
+    fi
   fi
 }
 
@@ -480,8 +511,10 @@ loop() {
   while true; do
     echo "$$: Start Build & Bench process"
     if update || test \! -e $B2G_DIR/out; then
+      canUploadBenchmarks=false
       build || continue
       flash || continue
+      canUploadBenchmarks=true
       # Save an image of the last build.
       saveForLater "$B2G_DIR/out/git-lastest.xz" >/dev/null &
       setupHostForBenchmark
