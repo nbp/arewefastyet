@@ -4,7 +4,7 @@ import urllib2
 
 class Submitter:
     def __init__(self, conf):
-        self.url = conf.get('main', 'updateURL').split(",")
+        self.urls = conf.get('main', 'updateURL').split(",")
         self.machine = conf.get('main', 'machine')
         self.runIds = []
         for i in range(len(self.urls)):
@@ -14,7 +14,7 @@ class Submitter:
     def Start(self):
         for i in range(len(self.urls)):
             try:
-                url = self.url
+                url = self.urls[i]
                 url += '?run=yes'
                 url += '&MACHINE=' + str(self.machine)
                 url = urllib2.urlopen(url)
@@ -30,7 +30,7 @@ class Submitter:
             if not self.runIds[i]:
                 continue
             
-            url = self.url
+            url = self.urls[i]
             url += '?run=addEngine'
             url += '&runid=' + str(self.runIds[i])
             url += '&name=' + name
@@ -46,7 +46,7 @@ class Submitter:
             if not self.runIds[i]:
                 continue
             
-            url = self.url
+            url = self.urls[i]
             url += '?name=' + name
             url += '&run=' + str(self.runIds[i])
             url += '&suite=' + suite
@@ -59,7 +59,7 @@ class Submitter:
             if not self.runIds[i]:
                 continue
             
-            url = self.url
+            url = self.urls[i]
             url += '?run=finish'
             url += '&status=' + str(status)
             url += '&runid=' + str(self.runIds[i])
