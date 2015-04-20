@@ -114,12 +114,13 @@ LOCAL_PORT_FILE=$PERSO_SETUP_DIR/marionette.port
 # Location of the settings with which the phone are used to run the
 # benchmarks. This is shared because it is useful to be able to switch
 # quickly from one wifi to another.
-TESTVARS=$SHARED_SETUP_DIR/bench-testvars.json
+TESTVARS=${TESTVARS:-$SHARED_SETUP_DIR/bench-testvars.json}
+
 WIFINET=$SHARED_SETUP_DIR/wifi.server.network
 
 # This configuration file inform the standalone driver of AWFY how to
 # upload results.
-AWFY_CONFIG=$SHARED_SETUP_DIR/awfy.config
+AWFY_CONFIG=$PERSO_SETUP_DIR/awfy.config
 LOCAL_AWFY_CONFIG=$SHARED_SETUP_DIR/awfy-local.config
 
 # Contains the identifer which is used to identify this build/engine
