@@ -419,21 +419,29 @@ countRemoteHosts() {
   test "$(run_adb shell cat /etc/hosts | grep -c $1)" -eq $2
 }
 
+rebootForBenchmark() {
+  # Restart Gecko processes, and reboot in order to reset the wifi
+  # driver which are frequently failing unless the phone is fully
+  # restarted.
+  run_adb reboot
+  sleep 5
+
+  # Wait until adb can answer
+  run_adb wait-for-device
+
+  # wait until the device can answer with the remote debugger
+  # protocol.
+  sleep 10
+}
+
 setupForBenchmark() {
   cd $SHARED_SETUP_DIR
 
   # wait for the device to appear under adb.
   run_adb wait-for-device
 
-  # Restart Gecko processes, and reboot in order to reset the wifi
-  # driver which are frequently failing unless the phone is fully
-  # restarted.
-  run_adb reboot
-  run_adb wait-for-device
-
-  # wait until the device can answer with the remote debugger
-  # protocol.
-  sleep 10
+  # Ensure that all the shells have root priviledges.
+  run_adb root || true
 
   # If We are using the awfy network then we need to set the address
   # of where the benchmarks are hosted, as we have a local copy of the
@@ -466,6 +474,10 @@ setupForBenchmark() {
       esac
       run_adb shell "echo performance > /sys/devices/system/cpu/$cpu/cpufreq/scaling_governor"
   done
+
+  # while test 0 -eq "$(run_adb shell b2g-ps | grep -c Homescreen)"; do
+  #   sleep 10
+  # done
 }
 
 # Expect the benchmar directory
@@ -473,10 +485,12 @@ runBenchmark() {
   local bench=$1
   local port=$(cat $LOCAL_PORT_FILE)
 
+  rebootForBenchmark
   setupForBenchmark
   gaiatest \
     --address=127.0.0.1:$port --device=$FASTBOOT_SERIAL_NO \
     --testvars=$TESTVARS $bench
+  # --restart
 }
 
 AWFY_DRIVER=$SHARED_SETUP_DIR/arewefastyet/driver/standalone.py
