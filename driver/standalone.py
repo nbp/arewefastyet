@@ -15,16 +15,17 @@ engine = sys.argv[3]
 b2gDir = sys.argv[4]
 
 
+nbAttempts = 2
 filterOutput = re.compile("Shell-like \w+ results:((?:.*\n)*)End of shell-like result.", re.MULTILINE)
 def runGaiaTest(test):
-    args = ['./run-benchmark.sh', b2gDir, test]
-
     nb = 0
     output = ""
     m = None
 
     # Retry because we might fail to connect to the wifi
-    while nb < 10:
+    while nb < nbAttempts:
+        args = ['./run-benchmark.sh', b2gDir, test]
+
         try:
             output = utils.Run(args)
             m = filterOutput.search(output)
@@ -34,7 +35,7 @@ def runGaiaTest(test):
             print e.output
 
         nb = nb + 1
-        if nb == 10:
+        if nb == nbAttempts:
             raise Exception("Fail to execute")
 
 
