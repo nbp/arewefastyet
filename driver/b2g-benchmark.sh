@@ -321,15 +321,35 @@ clobber() {
   rm -rf $B2G_DIR/objdir-gecko $B2G_DIR/out || true
 }
 
+oneSlowBuild() {
+  reportStage Slow Build
+  cd $B2G_DIR
+
+  ./build.sh -j1
+}
+
+clobberBuild() {
+  reportStage Clobber Build
+  cd $B2G_DIR
+
+  rm -rf $B2G_DIR/objdir-gecko;
+  ./build.sh
+}
+
+slowBuild() {
+  reportStage Slow Build
+  cd $B2G_DIR
+
+  ./build.sh -j1 || clobberBuild
+}
+
 build() {
   reportStage Build
   cd $B2G_DIR
 
   # Failure proof building process:
   #   Build, build again, rebuild, update & try again …
-  ./build.sh -j4 || \
-      ./build.sh -j1 || \
-      (rm -rf $B2G_DIR/objdir-gecko; ./build.sh -j4)
+  ./build.sh || slowBuild
 }
 
 flash() {
