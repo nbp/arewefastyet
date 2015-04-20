@@ -774,7 +774,12 @@ idleloop() {
 ##
 ## Call the function which name is given as argument.
 ##
-if test "$1" = checkoutByGeckoChangeset -o "$1" = saveForLater -o "$1" = changesetToCommit -o "$1" = commitToChangeset; then
+call() {
+  set -x
+  "$@"
+}
+
+if test "$1" = checkoutByGeckoChangeset -o "$1" = saveForLater -o "$1" = changesetToCommit -o "$1" = commitToChangeset -o "$1" = call -o "$1" = runBenchmark; then
   # Used for testing.
   "$@";
 else
