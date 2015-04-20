@@ -635,8 +635,112 @@ idle() {
       setupHostForBenchmark
       benchAndUpload
     else
-      sleep 300
+      sleep 30
     fi
+  fi
+}
+
+bisectStep () {
+  reportStage Bisecting Step
+
+  local bisectWithPatches=$B2G_DIR/.bisect/patches
+  local bisectLog=$B2G_DIR/.bisect/log.txt
+  while true; do
+    exitCode=0
+
+    # Save the bisection log.
+    GIT_DIR=$B2G_DIR/gecko/.git git bisect log > $bisectLog
+
+    # Synchronized based on the current version of Gecko.
+    updateOthersBasedOnGecko || exitStep
+
+    # Apply series of patches to the different trees.
+    cleanAfterCheckout || exitStep
+    applyPatches "$bisectWithPatches" || exitStep
+
+    build || exitStep
+    flash || exitStep
+
+    # Archive the image of this build, in order to reproduce it later.
+    testRev=$(geckoGitInfo)
+    saveForLater "$B2G_DIR/.bisect/images/gecko-git-$testRev.xz" >/dev/null
+
+    setupHostForBenchmark || exitStep
+
+    bisectRunTests
+    break;
+  done 2>&1 | tee "$B2G_DIR/.bisect/images/gecko-git-$testRev.log"
+}
+
+bisectRunTests() {
+  local bisectRunTests=$B2G_DIR/.bisect/run-tests
+
+  exitCode=0
+  "$bisectRunTests" "$0" "$B2G_DIR" || exitCode=$?
+  exitStep
+}
+
+# If we cannot build / setup the phone correctly, then skip this
+# revision by returning the exit code 125.  This exit code is a
+# special exit code expected by "git bisect run" to skip the current
+# revision and try another adjacent commit.
+exitCode=125
+
+exitStep() {
+  # Undo the modifications made by the patches.
+#  undoPatches "$bisectWithPatches" || exit $exitCode
+#  cleanBeforeCheckout || exit $exitCode
+
+  exit $exitCode
+}
+
+
+bisect() {
+  local badFile=
+  local goodFile=
+  local bisectVCS=
+
+  local bisectWithPatches=$B2G_DIR/.bisect/patches
+  local gitBadRevFile=$B2G_DIR/.bisect/gecko.bad
+  local gitGoodRevFile=$B2G_DIR/.bisect/gecko.good
+  local bisectRunTests=$B2G_DIR/.bisect/run-tests
+  local bisectLog=$B2G_DIR/.bisect/log.txt
+  mkdir -p "$B2G_DIR/.bisect/images/"
+  if test -e $gitGoodRevFile && test -n "$(cat "$gitGoodRevFile")"; then
+    bisectVCS=git;
+    badFile=$gitBadRevFile
+    bisectFile=$gitGoodRevFile
+    checkoutStrategy=checkoutByGeckoRev
+  else
+    echo 1>&2 "Mercurial is not supported yet."
+    exit 1
+  fi
+
+  if \! test -x $bisectRunTests -a -f $bisectRunTests; then
+    echo 1>&2 "Test case $bisectRunTests cannot be executed."
+    exit 1
+  fi
+
+  if test -n "$bisectVCS"; then
+    isIdle=false;
+    lastGeckoWorktree=$(geckoGitInfo)
+    mkdir -p $B2G_DIR/bisect.gecko
+    testRev=$(head -n 1 "$bisectFile")
+
+    cleanBeforeCheckout
+
+    cd $B2G_DIR/gecko
+    git bisect start
+    git bisect good $(cat "$gitGoodRevFile")
+    if test -e $gitBadRevFile && test -n "$(cat "$gitBadRevFile")"; then
+      git bisect bad $(cat "$gitBadRevFile")
+    else
+      git bisect bad
+    fi
+
+    git bisect run "$0" "$B2G_DIR" bisectStep
+    git bisect log > $bisectLog
+    git bisect reset
   fi
 }
 
