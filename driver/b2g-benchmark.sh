@@ -161,8 +161,13 @@ EOF
 updateManifest() {
   if test -e $PERSO_SETUP_DIR/update-manifest.sed; then
     cd $B2G_DIR/.repo/manifests
-    sed -f $PERSO_SETUP_DIR/update-manifest.sed unagi.xml > awsa-unagi.xml
-    ln -sf $B2G_DIR/.repo/manifests/awsa-unagi.xml $B2G_DIR/.repo/manifest.xml
+    sed -f $PERSO_SETUP_DIR/update-manifest.sed $DEVICE_NAME.xml > awsa-$DEVICE_NAME.xml
+    for base in : base-*.xml; do
+      test -e $base || continue;
+      sed -f $PERSO_SETUP_DIR/update-manifest.sed $base > awsa-$base
+    done
+    ln -sf $B2G_DIR/.repo/manifests/awsa-$DEVICE_NAME.xml $B2G_DIR/.repo/manifest.xml
+    cd -
   fi
 }
 
