@@ -1,11 +1,15 @@
 #!/bin/sh
 
-
 B2G_DIR=${B2G_DIR:-/home/awsa/unagi/B2G}
 if test -d "$1"; then
     B2G_DIR=$1
     shift;
 fi
+
+# define DEVICE_NAME
+. "$B2G_DIR/.config"
+
+export ANDROIDFS_DIR=$(dirname $B2G_DIR)/backup-${DEVICE_NAME}
 
 SHARED_SETUP_DIR=${SHARED_SETUP_DIR-/home/awsa}
 PERSO_SETUP_DIR=${PERSO_SETUP_DIR:-$B2G_DIR/perso}
