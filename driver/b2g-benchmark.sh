@@ -215,12 +215,35 @@ undoPatches() {
   fi
 }
 
-cleanBeforeCheckout() {
-  # Pull repository changes.
-  cd $B2G_DIR/.repo/manifests
-  git pull
-  updateManifest
+FETCH_LOCK=$PERSO_SETUP_DIR/fetch.lock
+fetch() {
+  (
+    # If the lock exists, then return.
+    flock -n 4 || return;
 
+    # Pull repository changes.
+    cd $B2G_DIR/.repo/manifests
+    git pull
+    updateManifest
+
+    # Get changes from remote repositories
+    cd $B2G_DIR
+    ionice -c 2 -n 7 ./repo sync --network-only --current-branch
+
+  ) 4> $FETCH_LOCK
+}
+
+canPull() {
+  flock -n 5 5> $FETCH_LOCK
+}
+
+pull() {
+  # Sync with the remote repository
+  cd $B2G_DIR
+  ./repo sync --local-only
+}
+
+cleanBeforeCheckout() {
   # Reset all repositories which have been patched.
   undoPatches $PERSO_SETUP_DIR/patches
 
@@ -252,15 +275,19 @@ cleanAfterCheckout() {
   mv $EXTRA_MOZCONFIG_FILE.tmp $B2G_DIR/gonk-misc/default-gecko-config
 }
 
+# Update all other repositories based on the current Gecko changeset.
+# Even if timestamps are not reliable, we are still using them to find
+# a more-less good revision which correspond to the time frame.
+updateOthersBasedOnGecko() {
+  cd $B2G_DIR
+  ./repo sync --local-only --repo-date="gecko" /gecko
+}
+
 checkout() {
   reportStage Checkout
 
   cleanBeforeCheckout
-
-  # Sync with the remote repository
-  cd $B2G_DIR
-  ./repo sync
-
+  pull
   cleanAfterCheckout
 }
 
@@ -277,8 +304,7 @@ checkoutByGeckoRev() {
 
   # Synchronized other repositories with date of the latest commit of
   # gecko without updating gecko.
-  cd $B2G_DIR
-  ./repo sync --repo-date="gecko" /gecko
+  updateOthersBasedOnGecko
 
   cleanAfterCheckout
 }
@@ -463,6 +489,7 @@ info() {
 ## Shortcuts for hand-made and for Are We Fast Yet builds
 ##
 all() {
+  fetch
   checkout
   build
   flash
@@ -497,13 +524,14 @@ benchmarkAll() {
 
 update() {
   previous=$(geckoGitInfo)
-  checkout
+  canPull && checkout
   current=$(geckoGitInfo)
   if test "$previous" != "$current"; then
     echo "Gecko: Update Sucessful."
     true
   else
     echo "Gecko: No update found."
+    fetch > /dev/null &
     false
   fi
 }
@@ -584,6 +612,9 @@ loop() {
       # Save an image of the last build.
       saveForLater "$B2G_DIR/out/git-lastest.xz" >/dev/null &
       setupHostForBenchmark
+      # Start fetching remote sources in parallel as benchmarking does
+      # not require a lot of I/O.
+      fetch > /dev/null &
       benchAndUpload
     else
       idle
