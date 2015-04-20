@@ -389,6 +389,7 @@ setupHostForBenchmark() {
 
   # Install all marionette & gaia-ui-tests updates
   local setupPies="$(
+      find $B2G_DIR/perso/python-libraries/ -name setup.py
       find $B2G_DIR/gecko/testing/ -name setup.py;
       find $B2G_DIR/$(cat $PERSO_SETUP_DIR/gaia-ui-tests.path)/gaia-ui-tests/ -name setup.py
   )"
@@ -396,17 +397,21 @@ setupHostForBenchmark() {
   for path in $setupPies; do
       cd $(dirname $path);
 
-      test -e ./requirements.txt && \
-	  mv ./requirements.txt ./requirements.txt.old && \
-	  sed  ./requirements.txt.old > ./requirements.txt '
+      if test -e ./requirements.txt; then
+	  mv ./requirements.txt ./requirements.txt.old
+	  sed '
             s/marionette_client==.*/marionette_client/;
             s/^\(moz.*\)[<=>][<=>][0-9.]*/\1/;
-          '
+          ' ./requirements.txt.old > ./requirements.txt
+      fi
 
-      python setup.py develop --prefix=$INSTALL_DIR -N || true
+      python setup.py develop --prefix=$INSTALL_DIR -N || \
+	  python setup.py install --prefix=$INSTALL_DIR || \
+          true
 
-      test -e ./requirements.txt && \
+      if test -e ./requirements.txt; then
 	  mv ./requirements.txt.old ./requirements.txt
+      fi
   done
 }
 
