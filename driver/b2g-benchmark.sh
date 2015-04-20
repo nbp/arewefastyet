@@ -67,6 +67,7 @@ commitToChangeset() {
 # benchmarks on it.
 FASTBOOT_SERIAL_FILE=$PERSO_SETUP_DIR/fastboot.serial
 FASTBOOT_SERIAL_NO=$(cat $FASTBOOT_SERIAL_FILE)
+SYS_DEVICE_LNK=$PERSO_SETUP_DIR/out/sys-device
 
 ADB=adb
 run_adb() {
@@ -81,6 +82,18 @@ find_device_name() {
     if $ADB -s $FASTBOOT_SERIAL_NO shell "echo Device $FASTBOOT_SERIAL_NO found."; then
       ADB_FLAGS="-s $FASTBOOT_SERIAL_NO"
       FASTBOOT_FLAGS="-s $FASTBOOT_SERIAL_NO"
+
+      # The device is found by adb, then make a symbolic link to where
+      # is is located on the bus system.
+      if test \! -e $SYS_DEVICE_LNK -o \
+	      $(cat $SYS_DEVICE_LNK/serial) != $FASTBOOT_SERIAL_NO
+      then
+	  local sys=$(find /sys -name serial | xargs grep -l $FASTBOOT_SERIAL_NO 2> /dev/null)
+	  sys=$(dirname $sys)
+	  rm $SYS_DEVICE_LNK || true
+	  mkdir -p $(dirname $SYS_DEVICE_LNK)
+	  ln -s $sys $SYS_DEVICE_LNK
+      fi
     else
       echo "Error: Device $FASTBOOT_SERIAL_NO not found!"
       exit 1
