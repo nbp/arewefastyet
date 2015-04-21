@@ -41,28 +41,30 @@ def runGaiaTest(test):
 benchmarks = {
     'octane': {
         'name' : 'octane2',
+        'version' : '2.0.1',
         'filter' : benchmark.v8_filter,
         'output' : None
     },
     'ss': {
         'name' : 'sunspider',
+        'version' : '1.0.1',
         'filter' : benchmark.sunspider_filter,
         'output' : None
     },
     'kraken': {
         'name' : 'kraken',
+        'version' : '1.1',
         'filter' : benchmark.sunspider_filter,
         'output' : None
     }
 }
 
-config = ConfigParser.RawConfigParser()
-config.read(configFile)
-
-if config.get('main', 'local') == 'yes':
-    submit = submitter.FakeSubmitter(config)
+utils.config.init(configFile)
+if utils.config.get('main', 'local') == 'yes':
+    submit = submitter.getSubmitter('print') FakeSubmitter(config)
 else:
-    submit = submitter.Submitter(config)
+    submit = submitter.getSubmitter('remote')
+submit = submit(utils.config.get('main', 'machine'))
 
 # Run benchmarks, filter and collect outputs.
 for suite in benchmarks.keys():
@@ -78,7 +80,8 @@ submit.Start()
 submit.AddEngine(engine, changeset)
 for suite in benchmarks.keys():
     tests = benchmarks[suite]['output']
+    suiteversion = suite + " " + benchmarks[suite]['version']
     if tests is not None:
-        submit.AddTests(tests, suite, engine)
+        submit.AddTests(tests, suite, suiteversion, engine)
 
 submit.Finish(1)

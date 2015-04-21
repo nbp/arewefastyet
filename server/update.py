@@ -1,82 +1,97 @@
 # vim: set ts=4 sw=4 tw=99 et:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 import os
 import sys
 import awfy
 import data
-import json
 import time
+import util
 import os.path
 import datetime
-import condenser
+import condenser, json
 from profiler import Profiler
 from builder import Builder
-
-def timezone_offset():
-    return 0
 
 def export(name, j):
     path = os.path.join(awfy.path, name)
     if os.path.exists(path):
         os.remove(path)
     with open(path, 'w') as fp:
-        json.dump(j, fp)
+        util.json_dump(j, fp)
     print('Exported: ' + name)
 
 def load_metadata(prefix):
     try:
         with open(os.path.join(awfy.path, 'metadata-' + prefix + '.json'), 'r') as fp:
-            cache = json.load(fp)
+            cache = util.json_load(fp)
     except:
-        cache = { 'earliest_run_id': 0 }
+        cache = { 'last_stamp': 0 }
 
     return cache
 
 def save_metadata(prefix, data):
     with open(os.path.join(awfy.path, 'metadata-' + prefix + '.json'), 'w') as fp:
-        json.dump(data, fp)
+        util.json_dump(data, fp)
 
 def delete_metadata(prefix, data):
     name = os.path.join(awfy.path, 'metadata-' + prefix + '.json')
     if os.path.exists(name):
         os.remove(name)
 
-def fetch_test_scores(machine_id, suite_id, name, earliest_run_id):
-    query = "SELECT r.id, r.stamp, b.cset, s.score, s.mode_id                       \
-             FROM awfy_breakdown s                                                  \
-             JOIN awfy_mode m ON m.id = s.mode_id                                   \
-             JOIN fast_run r ON s.run_id = r.id                                     \
-             JOIN awfy_build b ON (s.run_id = b.run_id AND s.mode_id = b.mode_id)   \
-             WHERE s.suite_id = %s                                                  \
-             AND s.test = %s                                                        \
-             AND r.status = 1                                                       \
+def fetch_test_scores(machine_id, suite_id, name,
+                      finish_stamp = (0,"UNIX_TIMESTAMP()"),
+                      test_stamp = (0, "UNIX_TIMESTAMP()")):
+    query = "SELECT STRAIGHT_JOIN r.id, r.stamp, b.cset, s.score, b.mode_id, v.id   \
+             FROM awfy_run r                                                        \
+             JOIN awfy_build b ON r.id = b.run_id                                   \
+             JOIN awfy_breakdown s ON s.build_id = b.id                             \
+             JOIN awfy_suite_test t ON s.suite_test_id = t.id                       \
+             JOIN awfy_suite_version v ON v.id = t.suite_version_id                 \
+             WHERE v.suite_id = %s                                                  \
+             AND t.name = %s                                                        \
+             AND r.status > 0                                                       \
              AND r.machine = %s                                                     \
-             AND r.id > %s                                                          \
+             AND r.finish_stamp >= "+str(finish_stamp[0])+"                         \
+             AND r.finish_stamp <= "+str(finish_stamp[1])+"                         \
+             AND r.stamp >= "+str(test_stamp[0])+"                                  \
+             AND r.stamp <= "+str(test_stamp[1])+"                                  \
              ORDER BY r.stamp ASC                                                   \
              "
     c = awfy.db.cursor()
-    c.execute(query, [suite_id, name, machine_id, earliest_run_id])
+    c.execute(query, [suite_id, name, machine_id])
     return c.fetchall()
 
-def fetch_suite_scores(machine_id, suite_id, earliest_run_id):
-    query = "SELECT r.id, r.stamp, b.cset, s.score, s.mode_id               \
-             FROM awfy_score s                                              \
-             JOIN awfy_mode m                                               \
-             JOIN fast_run r ON s.run_id = r.id                             \
-             JOIN awfy_build b ON (s.run_id = b.run_id AND s.mode_id = b.mode_id)    \
-             WHERE s.suite_id = %s                                          \
-             AND r.id > %s                                                  \
-             AND r.status = 1                                               \
-             AND r.machine = %s                                             \
-             ORDER BY r.stamp ASC                                           \
+def fetch_suite_scores(machine_id, suite_id,
+                       finish_stamp = (0,"UNIX_TIMESTAMP()"),
+                       test_stamp = (0, "UNIX_TIMESTAMP()")):
+    query = "SELECT STRAIGHT_JOIN r.id, r.stamp, b.cset, s.score, b.mode_id, v.id   \
+             FROM awfy_run r                                                        \
+             JOIN awfy_build b ON r.id = b.run_id                                   \
+             JOIN awfy_score s ON s.build_id = b.id                                 \
+             JOIN awfy_suite_version v ON v.id = s.suite_version_id                 \
+             WHERE v.suite_id = %s                                                  \
+             AND r.status > 0                                                       \
+             AND r.machine = %s                                                     \
+             AND r.finish_stamp >= "+str(finish_stamp[0])+"                         \
+             AND r.finish_stamp <= "+str(finish_stamp[1])+"                         \
+             AND r.stamp >= "+str(test_stamp[0])+"                                  \
+             AND r.stamp <= "+str(test_stamp[1])+"                                  \
+             ORDER BY r.stamp ASC                                                   \
              "
     c = awfy.db.cursor()
-    c.execute(query, [suite_id, earliest_run_id, machine_id])
+    c.execute(query, [suite_id, machine_id])
     return c.fetchall()
+
+def delete_cache(prefix):
+    os.remove(os.path.join(awfy.path, prefix + '.json'))
 
 def open_cache(suite, prefix):
     try:
         with open(os.path.join(awfy.path, prefix + '.json')) as fp:
-            cache = json.load(fp)
+            cache = util.json_load(fp)
             return cache['graph']
     except:
         return { 'timelist': [],
@@ -89,7 +104,7 @@ def save_cache(prefix, cache):
           'version': awfy.version
         }
     with open(os.path.join(awfy.path, prefix + '.json'), 'w') as fp:
-        json.dump(j, fp)
+        util.json_dump(j, fp)
 
 def update_cache(cx, suite, prefix, when, rows):
     # Sort everything into separate modes.
@@ -120,10 +135,11 @@ def update_cache(cx, suite, prefix, when, rows):
             else:
                 cset = None
             builder.addPoint(points,
-                             int(row[1]) - timezone_offset(),
+                             int(row[1]),
                              cset,
                              None,
-                             score)
+                             score,
+                             row[5])
         line = { 'modeid': modeid,
                  'data': points
                }
@@ -139,12 +155,12 @@ def update_cache(cx, suite, prefix, when, rows):
     for i, oldline in enumerate(cache['lines']):
         cache_modes[int(oldline['modeid'])] = oldline
 
-    # Prune times which are before the last time in the cache.
+    # Updating fails if there are items before the last time in the cache.
     if len(cache['timelist']) and len(builder.timelist):
         last_time = cache['timelist'][-1]
         i = 0
         while i < len(builder.timelist) and builder.timelist[i] < last_time:
-            i = i + 1
+            return False
         if i:
             builder.timelist = builder.timelist[i:]
             for line in lines:
@@ -187,16 +203,50 @@ def update_cache(cx, suite, prefix, when, rows):
 
     # Now save the results.
     save_cache(prefix, cache)
+    return True
 
-def perform_update(cx, suite, prefix, fetch):
+def renew_cache(cx, machine, suite, prefix, when, last_stamp, fetch):
+    delete_cache(prefix + '-' + str(when[0]) + '-' + str(when[1]));
+
+    # Delete corresponding condensed graph
+    before, after = prefix.split("raw", 1)
+    delete_cache(before + "condensed" + after + '-' + str(when[0]) + '-' + str(when[1]));
+
+    dt = datetime.datetime(year=when[0], month=when[1], day=1)
+    start_stamp = int(time.mktime(dt.timetuple()))
+
+    next_month = when[1] + 1
+    next_year = when[0]
+    if next_month == 13:
+        next_month = 1
+        next_year += 1
+    dt = datetime.datetime(year=next_year, month=next_month, day=1)
+    stop_stamp = int(time.mktime(dt.timetuple())) - 1
+    if last_stamp < stop_stamp:
+        stop_stamp = last_stamp
+
+    # Querying all information from this month.
+    sys.stdout.write('Querying ' + prefix + '... ')
+    sys.stdout.flush()
+    with Profiler() as p:
+        rows = fetch(machine, test_stamp=(start_stamp,stop_stamp))
+        diff = p.time()
+    new_rows = len(rows)
+    print('found ' + str(new_rows) + ' rows in ' + diff)
+
+    name = prefix + '-' + str(when[0]) + '-' + str(when[1])
+    update_cache(cx, suite, name, when, rows) 
+
+def perform_update(cx, machine, suite, prefix, fetch):
     # Fetch the actual data.
     metadata = load_metadata(prefix)
-    earliest_run_id = metadata['earliest_run_id']
+    last_stamp = metadata['last_stamp']
+    current_stamp = int(time.time())
 
     sys.stdout.write('Querying ' + prefix + '... ')
     sys.stdout.flush()
     with Profiler() as p:
-        rows = fetch(earliest_run_id)
+        rows = fetch(machine, finish_stamp=(last_stamp+1, current_stamp))
         diff = p.time()
     new_rows = len(rows)
     print('found ' + str(new_rows) + ' new rows in ' + diff)
@@ -207,7 +257,7 @@ def perform_update(cx, suite, prefix, fetch):
     current = []
     months = []
     for row in rows:
-        stamp = int(row[1]) - timezone_offset()
+        stamp = int(row[1])
         t = time.gmtime(stamp)
         if t.tm_year != year or t.tm_mon != month:
             if year and len(current):
@@ -227,42 +277,53 @@ def perform_update(cx, suite, prefix, fetch):
         sys.stdout.write('Updating cache for ' + name + '...')
         sys.stdout.flush()
         with Profiler() as p:
-            update_cache(cx, suite, name, when, data)
+            if not update_cache(cx, suite, name, when, data):
+                renew_cache(cx, machine, suite, prefix, when, last_stamp, fetch)
             diff = p.time()
         print('took ' + diff)
 
-    if len(rows):
-        metadata['earliest_run_id'] = rows[-1][0]
-        save_metadata(prefix, metadata)
+    metadata['last_stamp'] = current_stamp
+    save_metadata(prefix, metadata)
 
     return new_rows
 # Done
 
 def update(cx, machine, suite):
-    def fetch_aggregate(earliest_run_id):
-        return fetch_suite_scores(machine.id, suite.id, earliest_run_id)
+    def fetch_aggregate(machine, finish_stamp = (0,"UNIX_TIMESTAMP()"),
+                                 test_stamp = (0, "UNIX_TIMESTAMP()")):
+        return fetch_suite_scores(machine.id, suite.id, finish_stamp, test_stamp)
 
-    prefix = 'raw-' + suite.name + '-' + str(machine.id)
-    new_rows = perform_update(cx, suite, prefix, fetch_aggregate)
+    prefix = ""
+    if suite.visible == 2:
+        prefix = "auth-"
+
+    prefix += 'raw-' + suite.name + '-' + str(machine.id)
+    new_rows = perform_update(cx, machine, suite, prefix, fetch_aggregate)
 
     # This is a little cheeky, but as an optimization we don't bother querying
     # subtests if we didn't find new rows.
     if not new_rows:
         return
 
-    for test in suite.tests:
-        def fetch_test(earliest_run_id):
-            return fetch_test_scores(machine.id, suite.id, test, earliest_run_id)
+    for test_name in suite.tests:
+        def fetch_test(machine, finish_stamp = (0,"UNIX_TIMESTAMP()"),
+                                test_stamp = (0, "UNIX_TIMESTAMP()")):
+            return fetch_test_scores(machine.id, suite.id, test_name, finish_stamp, test_stamp)
 
-        prefix = 'bk-raw-' + suite.name + '-' + test + '-' + str(machine.id)
-        perform_update(cx, suite, prefix, fetch_test)
+        prefix = ""
+        if suite.visible == 2:
+            prefix = "auth-"
+
+        prefix += 'bk-raw-' + suite.name + '-' + test_name + '-' + str(machine.id)
+        perform_update(cx, machine, suite, prefix, fetch_test)
 
 def export_master(cx):
     j = { "version": awfy.version,
           "modes": cx.exportModes(),
           "vendors": cx.exportVendors(),
           "machines": cx.exportMachines(),
-          "suites": cx.exportSuites()
+          "suites": cx.exportSuites(),
+          "suiteversions" : cx.exportSuiteVersions()
         }
 
     text = "var AWFYMaster = " + json.dumps(j) + ";\n"
@@ -275,9 +336,11 @@ def export_master(cx):
 
 def update_all(cx):
     for machine in cx.machines:
+        # Don't try to update machines that we're no longer tracking.
+        if machine.active == 2:
+            continue
+
         for benchmark in cx.benchmarks:
-            if benchmark.name == 'v8':
-                continue
             update(cx, machine, benchmark)
 
 def main(argv):

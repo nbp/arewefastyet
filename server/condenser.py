@@ -1,20 +1,34 @@
 # vim: set ts=4 sw=4 tw=99 et:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 import re
 import os
 import sys
-import awfy
-import json
+import awfy, util
+import math
 from profiler import Profiler
+from datetime import datetime
 
 SecondsPerDay = 60 * 60 * 24
 MaxRecentRuns = 30
+
+def should_export(name, when):
+    path = os.path.join(awfy.path, name)
+    if not os.path.exists(path):
+        return True
+    now = datetime.now()
+    if now.year == when[0] and now.month == when[1]:
+        return True
+    return False
 
 def export(name, j):
     path = os.path.join(awfy.path, name)
     if os.path.exists(path):
         os.remove(path)
     with open(path, 'w') as fp:
-        json.dump(j, fp)
+        util.json_dump(j, fp)
 
 def find_all_months(cx, prefix, name):
     pattern = prefix + 'raw-' + name + '-(\d\d\d\d)-(\d+)\.json'
@@ -33,7 +47,7 @@ def find_all_months(cx, prefix, name):
     graphs = []
     for when, file in files:
         with open(os.path.join(awfy.path, file)) as fp:
-            cache = json.load(fp)
+            cache = util.json_load(fp)
         graphs.append((when, cache['graph']))
 
     return graphs
@@ -67,21 +81,26 @@ def condense_graph(graph, regions):
     for line in graph['lines']:
         points = []
         for start, end in regions:
-            average = 0
+            total = 0
             count = 0
             first = None
             last = None
+            suite_version = None
             for i in range(start, end):
                 p = line['data'][i]
                 if not p or not p[0]:
                     continue
-                average = ((average * count) + p[0]) / (count + 1)
-                count = count + 1
+                total += p[0]
+                count += 1
                 if not first:
                     first = p[1]
                 last = p[1]
-            points.append([average, first, last])
-                
+                suite_version = p[3]
+            if count == 0:
+                avg = 0
+            else:
+                avg = total/count
+            points.append([avg, first, last, suite_version])
 
         newline = { 'modeid': line['modeid'],
                     'data': points
@@ -154,9 +173,22 @@ def aggregate(graph):
             graph['earliest'] = graph['timelist'][0]
         return graph
 
+    # Show MacRecentRuns of atleast one line.
+    recentRuns = 0
+    runs = []
+    for i in range(len(graph['lines'])):
+        runs.append(0)
+    for i in range(len(graph['timelist'])-1, -1, -1):
+        for j in range(len(graph['lines'])):
+            if graph['lines'] and i < len(graph['lines'][j]["data"]) and graph['lines'][j]["data"][i]:
+                runs[j] += 1
+        recentRuns += 1 
+        if max(runs) == MaxRecentRuns:
+            break
+
     # If the number of historical points is <= the number of recent points,
     # then the graph is about split so we don't have to do anything.
-    historical = len(graph['timelist']) - MaxRecentRuns
+    historical = len(graph['timelist']) - recentRuns
     if historical <= MaxRecentRuns:
         graph['earliest'] = graph['timelist'][historical]
         return graph
@@ -169,10 +201,10 @@ def aggregate(graph):
     for i in range(0, MaxRecentRuns):
         start = int(round(pos))
 
-        j = start
-        while j < pos + region_length and j < historical:
-            j = j + 1
-        regions.append((start, j))
+        end = min(int(math.floor(pos + region_length)), historical) - 1
+        if end < start:
+            end = start
+        regions.append((start, end))
         pos += region_length
 
     new_graph = condense_graph(graph, regions)
@@ -204,6 +236,11 @@ def condense(cx, suite, prefix, name):
 
     for when, graph in graphs:
         new_name = prefix + 'condensed-' + name + '-' + str(when[0]) + '-' + str(when[1])
+
+        # Don't condense if it already exists...
+        if not should_export(new_name + '.json', when):
+            continue
+
         sys.stdout.write('Condensing ' + new_name + '... ')
         sys.stdout.flush()
         with Profiler() as p:
@@ -224,29 +261,41 @@ def condense(cx, suite, prefix, name):
 
 def condense_suite(cx, machine, suite):
     name = suite.name + '-' + str(machine.id)
+    prefix = ""
+    if suite.visible == 2:
+        prefix = "auth-"
 
-    # We don't build individual aggregate json for each suite, so just pass
-    # the combine graph back to our caller.
-    suite_aggregate = condense(cx, suite, '', name)
+    suite_aggregate = condense(cx, suite, prefix, name)
 
-    for test in suite.tests:
-        test_name = suite.name + '-' + test + '-' + str(machine.id)
-        test_aggregate = condense(cx, suite, 'bk-', test_name)
+    j = { 'version': awfy.version,
+          'graph': suite_aggregate
+        }
+    export(prefix + 'aggregate-' + suite.name + '-' + str(machine.id) + '.json', j)
+
+    for test_name in suite.tests:
+        test_path = suite.name + '-' + test_name + '-' + str(machine.id)
+        test_aggregate = condense(cx, suite, prefix + 'bk-', test_path)
         j = { 'version': awfy.version,
               'graph': test_aggregate
             }
-        export('bk-aggregate-' + test_name + '.json', j)
+        export(prefix + 'bk-aggregate-' + test_path + '.json', j)
 
     return suite_aggregate
 
 def condense_all(cx):
     for machine in cx.machines:
+        # If a machine is set to no longer report scores, don't condense it.
+        if machine.active == 2:
+            continue
+
         aggregates = { }
         for suite in cx.benchmarks:
             if suite.name == 'v8':
                 continue
             suite_aggregate = condense_suite(cx, machine, suite)
             if suite.name == 'misc':
+                continue
+            if suite.visible == 2:
                 continue
             aggregates[suite.name] = suite_aggregate
 

@@ -1,7 +1,11 @@
 // vim: set ts=4 sw=4 tw=99 et:
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 var AWFY = { };
 
+AWFY.DEFAULT_MACHINE_ID = 28;
 AWFY.refreshTime = 60 * 5;
 AWFY.machineId = 0;
 AWFY.hasLegend = false;
@@ -11,16 +15,16 @@ AWFY.aggregate = null;
 AWFY.xhr = [];
 AWFY.view = 'none';
 AWFY.suiteName = null;
+AWFY.subtest = null;
 AWFY.lastHash = null;
 AWFY.lastRefresh = 0;
 
 AWFY.request = function (files, callback) {
     var url = window.location.protocol + '//' +
-              window.location.host +
-              window.location.pathname;
+              window.location.host;
     if (url[url.length - 1] != '/')
         url += '/';
-    url += 'data/';
+    url += 'data.php?file=';
 
     var count = 0;
     var received = new Array(files.length);
@@ -55,6 +59,16 @@ AWFY.pushState = function () {
         vars.push('view=breakdown');
         vars.push('suite=' + this.suiteName);
     }
+    if (this.view == 'single') {
+        vars.push('view=single');
+        vars.push('suite=' + this.suiteName);
+        if (this.subtest)
+            vars.push('subtest=' + this.subtest);
+        if (this.start && this.end) {
+            vars.push('start='+this.start);
+            vars.push('end='+this.end);
+        }
+    }
 
     if ($('#about').is(':visible'))
         vars.push('about=1');
@@ -68,25 +82,41 @@ AWFY.pushState = function () {
 }
 
 AWFY.loadAggregateGraph = function (blobgraph) {
+    if (!blobgraph)
+        return;
     var lines = [];
+    var info = [];
     for (var i = 0; i < blobgraph.lines.length; i++) {
         var blobline = blobgraph.lines[i];
 
         var points = [];
+        var k = 0;
         for (var j = 0; j < blobline.data.length; j++) {
             var point = blobline.data[j];
+            // When there is no point, we normally just push a null point.
+            // This results in a line stop. Now e.g. firefox OS has 4 different
+            // engines reporting on different times. So every point has a gap.
+            // To counteract this we still draw a line (by not giving null points),
+            // if there has been less than the amount of lines (*1.5).
+            if (!point) {
+                if (k++ < blobgraph.lines.length*1.5)
+                    continue
+            } else {
+                k = 0;
+            }
             var score = point && point[0]
                         ? point[0]
                         : null;
             points.push([j, score]);
         }
 
-        // Mark the mode as used.
         var mode = AWFYMaster.modes[blobline.modeid];
-        mode.used = true;
+        if (!mode)
+            continue;
 
         var line = { color: mode.color, data: points };
         lines.push(line);
+        info.push(blobline);
     }
 
     var graph = { lines: lines,
@@ -94,25 +124,38 @@ AWFY.loadAggregateGraph = function (blobgraph) {
                   aggregate: blobgraph.aggregate,
                   timelist: blobgraph.timelist,
                   earliest: blobgraph.earliest,
-                  info: blobgraph.lines
+                  info: info
                 };
     return graph;
 }
 
-AWFY.displayNewGraph = function (name, graph) {
-    var elt = $('#' + name + '-graph');
+AWFY.displayNewGraph = function (id, domid, graph) {
+    var elt = $('#' + domid + '-graph');
+    var title = $('#' + domid + '-title');
     if (!elt.length)
         return;
+    if (!graph) {
+        this.aggregate[id] = undefined;
+        elt.hide();
+        title.hide();
+        return;
+    }
+    elt.show();
+    title.show();
     var display = elt.data('awfy-display');
     if (!display) {
-        display = new Display(this, name, elt);
+        display = new Display(this, id, domid, elt);
         elt.data('awfy-display', display);
     }
     if (display.shouldRefresh()) {
         display.setup(graph);
         display.draw();
     }
-    this.aggregate[name] = graph;
+    this.aggregate[id] = graph;
+    if (this.start && this.end) {
+        AWFY.requestZoom(display, "condensed", this.start, this.end)
+        display.zoomInfo.level = 'month';
+    }
 }
 
 AWFY.drawLegend = function () {
@@ -124,9 +167,24 @@ AWFY.drawLegend = function () {
 
     legend.empty();
 
+    var modes = [];
     for (var modename in AWFYMaster.modes) {
         var mode = AWFYMaster.modes[modename];
+        // hack - strip jm+ti, bc
+        if (modename == 12 || modename == 15)
+            continue;
+        if (AWFY.machineId != 14 && modename == 16)
+            continue;
+        if (!mode.used)
+            continue;
+        modes.push(mode);
+    }
+
+    for (var i = 0; i < modes.length; i++) {
+        var mode = modes[i];
         var vendor = AWFYMaster.vendors[mode.vendor_id];
+        if (!vendor)
+            continue;
         var item = $('<li style="border-color:' + mode.color + '"></li>');
         var link = $('<a href="#" style="text-decoration: none">' +
                      vendor.browser +
@@ -167,7 +225,7 @@ AWFY.drawLegend = function () {
     this.hasLegend = true;
 }
 
-AWFY.computeBreakdown = function (data, id) {
+AWFY.computeBreakdown = function (data, id, domid) {
     var blob = typeof data == "string"
                ? JSON.parse(data)
                : data;
@@ -179,7 +237,7 @@ AWFY.computeBreakdown = function (data, id) {
     }
 
     var graph = this.loadAggregateGraph(blob['graph']);
-    this.displayNewGraph(id, graph);
+    this.displayNewGraph(id, domid, graph);
 }
 
 AWFY.computeAggregate = function (received) {
@@ -204,8 +262,9 @@ AWFY.computeAggregate = function (received) {
     // Save this for if/when we need to zoom out.
     this.aggregate = graphs;
 
-    for (var id in graphs)
-        this.displayNewGraph(id, graphs[id]);
+    for (var id in graphs) {
+        this.displayNewGraph(id, id, graphs[id]);
+    }
 
     this.drawLegend();
 }
@@ -274,6 +333,8 @@ AWFY.mergeJSON = function (blobs) {
     var actual = [];
     var info = [];
     for (var modename in lines) {
+        if (!(modename in AWFYMaster.modes))
+            continue;
         var line = { data: lines[modename].points,
                      color: AWFYMaster.modes[modename].color
                    };
@@ -393,7 +454,9 @@ AWFY.trim = function (graph, start, end) {
     return { lines: lines,
              info: infos,
              timelist: timelist,
-             direction: graph.direction
+             direction: graph.direction,
+             start: start,
+             end: end
            };
 }
 
@@ -441,12 +504,14 @@ AWFY.requestZoom = function (display, kind, start_t, end_t) {
                         : 12;
         for (var month = firstMonth; month <= lastMonth; month++) {
             var name = kind + '-' +
-                       display.id + '-' +
-                       this.machineId + '-' +
+					   display.id + '-' +
+					   this.machineId + '-' +
                        year + '-' +
                        month;
             if (this.view == 'breakdown')
                 name = 'bk-' + name;
+            else if (this.view == 'single' && this.subtest)
+				name = 'bk-' + name;
             files.push(name);
         }
     }
@@ -458,6 +523,16 @@ AWFY.requestZoom = function (display, kind, start_t, end_t) {
     this.request(files, zoom.bind(this));
 }
 
+AWFY.trackZoom = function (start, end) {
+    // Only track in single modus
+    if (this.view != 'single')
+        return;
+
+    this.start = start;
+    this.end = end;
+    this.pushState();
+}
+
 AWFY.showOverview = function () {
     this.reset('overview');
 
@@ -467,8 +542,10 @@ AWFY.showOverview = function () {
     $('.graph-container').show();
 
     this.suiteName = null;
+    this.subtest = null
+    this.start = null
+    this.end = null
     this.panes = [$('#ss-graph'),
-                  $('#v8real-graph'),
                   $('#kraken-graph'),
                   $('#octane-graph')
                  ];
@@ -488,6 +565,9 @@ AWFY.showBreakdown = function (name) {
     breakdown.show();
 
     this.suiteName = name;
+    this.start = null
+    this.end = null
+    this.subtest = null;
     this.panes = [];
 
     var total = 0;
@@ -497,21 +577,32 @@ AWFY.showBreakdown = function (name) {
     for (var i = 0; i < suite.tests.length; i++) {
         var test = suite.tests[i];
         var id = name + '-' + test;
-        $('<div></div>').html('<b>' + id + '</b>').appendTo(breakdown);
-        var div = $('<div id="' + id + '-graph" class="graph"></div>');
+        var domid = id.replace(/ /g,'-').replace(/\./g, '-');
+        ( function (name, test) {
+            var title = $('<div id="' + domid + '-title"></div>').click(
+                (function (event) {
+                 this.showSingle(name, test, null, null);
+                 this.pushState();
+                 return false;
+                 }).bind(this))
+            .html('<b><a href="#">' + id + '</a></b>')
+            .appendTo(breakdown);
+            title.hide();
+            }.bind(this)  )(name, test)
+        var div = $('<div id="' + domid + '-graph" class="graph"></div>');
         div.appendTo(breakdown);
-        $('<br><br>').appendTo(breakdown);
+        div.hide();
 
         this.panes.push(div);
 
-        var callback = (function (id) {
-            return (function (received) {
-                if (received[0])
-                    this.computeBreakdown(received[0], id);
-                if (++total == suite.tests.length)
+        var callback = (function (id, domid) {
+                return (function (received) {
+                    if (received[0])
+                        this.computeBreakdown(received[0], id, domid);
+                    if (++total == suite.tests.length)
                     this.drawLegend();
-            }).bind(this);
-        }).bind(this)(id);
+                    }).bind(this);
+                }).bind(this)(id, domid);
 
         // Fire off an XHR request for each test.
         var file = 'bk-aggregate-' + id + '-' + this.machineId;
@@ -520,21 +611,135 @@ AWFY.showBreakdown = function (name) {
     this.lastRefresh = Date.now();
 }
 
+AWFY.showSingle = function (name, subtest, start, end) {
+    this.reset('single');
+
+    // Clear the breakdown view.
+    var breakdown = $('#breakdown');
+    breakdown.empty()
+
+    $('.graph-container').hide();
+    breakdown.show();
+
+    this.suiteName = name;
+    this.subtest = subtest;
+    this.start = start;
+    this.end = end;
+    this.panes = [];
+
+    // Test existance of subtest
+    var suite = AWFYMaster.suites[name];
+    var found = false;
+    for (var i = 0; i < suite.tests.length; i++) {
+        var test = suite.tests[i];
+        if (subtest == test) {
+            found = true;
+            break;
+        }
+    }
+
+    if (found) {
+        var id = name + '-' + test;
+        var domid = id.replace(/ /g,'-').replace(/\./g, '-');
+        var title = $('<div id="' + domid + '-title"></div>').html('<b>' + id + '</b>').appendTo(breakdown);
+		title.hide();
+        var div = $('<div id="' + domid + '-graph" class="graph"></div>');
+        div.appendTo(breakdown);
+        div.hide();
+        $('<br><br>').appendTo(breakdown);
+
+        this.panes.push(div);
+
+        var callback = (function (id, domid) {
+                return (function (received) {
+                    if (received[0])
+                    this.computeBreakdown(received[0], id, domid);
+                    this.drawLegend();
+                    }).bind(this);
+                }).bind(this)(id, domid);
+
+        var file = 'bk-aggregate-' + id + '-' + this.machineId;
+        this.request([file], callback);
+    } else {
+        var id = name;
+        var domid = id.replace(/ /g,'-').replace(/\./g, '-') + "-single";
+        var title = $('<div id="' + domid + '-title"></div>').html('<b>' + id + '</b>').appendTo(breakdown);
+		title.hide();
+        var div = $('<div id="' + domid + '-graph" class="graph"></div>');
+        div.appendTo(breakdown);
+        div.hide();
+        $('<br><br>').appendTo(breakdown);
+
+        this.panes.push(div);
+
+        var callback = (function (id, domid) {
+                return (function (received) {
+                    if (received[0])
+                        this.computeBreakdown(received[0], id, domid);
+                    this.drawLegend();
+                    }).bind(this);
+                }).bind(this)(id, domid);
+
+        var file = 'aggregate-' + id + '-' + this.machineId;
+        this.request([file], callback);
+    }
+
+    this.lastRefresh = Date.now();
+}
+
 AWFY.requestRedraw = function () {
     if (this.view == 'overview') {
         this.request(['aggregate-' + this.machineId],
-                   this.computeAggregate.bind(this));
+                this.computeAggregate.bind(this));
     } else if (this.view == 'breakdown') {
         var suite = AWFYMaster.suites[this.suiteName];
+        var total = 0;
         for (var i = 0; i < suite.tests.length; i++) {
             var id = this.suiteName + '-' + suite.tests[i];
-            var callback = (function (id) {
-                return (function (received) {
-                    if (received[0])
-                        this.computeBreakdown(received[0], id);
-                }).bind(this);
-            }).bind(this)(id);
+			var domid = id.replace(/ /g,'-').replace(/\./g, '-');
+            var callback = (function (id, domid) {
+                    return (function (received) {
+                        if (received[0])
+                            this.computeBreakdown(received[0], id, domid);
+                        if (++total == suite.tests.length)
+                            this.drawLegend();
+                        }).bind(this);
+                    }).bind(this)(id, domid);
             var file = 'bk-aggregate-' + id + '-' + this.machineId;
+            this.request([file], callback);
+        }
+    } else if (this.view == 'single') {
+        var suite = AWFYMaster.suites[this.suiteName];
+        var found = false;    
+        for (var i = 0; i < suite.tests.length; i++) {
+            if (suite.tests[i] == this.subtest) {
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            var id = this.suiteName + '-' + this.subtest;
+			var domid = id.replace(/ /g,'-').replace(/\./g, '-');
+            var callback = (function (id, domid) {
+                    return (function (received) {
+                        if (received[0])
+                        this.computeBreakdown(received[0], id, domid);
+                        this.drawLegend();
+                        }).bind(this);
+                    }).bind(this)(id, domid);
+            var file = 'bk-aggregate-' + id + '-' + this.machineId;
+            this.request([file], callback);
+        } else {
+            var id = this.suiteName;
+			var domid = id.replace(/ /g,'-').replace(/\./g, '-') + "-single";
+            var callback = (function (id, domid) {
+                    return (function (received) {
+                        if (received[0])
+                        this.computeBreakdown(received[0], id, domid);
+                        this.drawLegend();
+                        }).bind(this);
+                    }).bind(this)(id, domid);
+            var file = 'aggregate-' + id + '-' + this.machineId;
             this.request([file], callback);
         }
     }
@@ -562,6 +767,9 @@ AWFY.reset = function (view) {
             elt.empty();
         }
     }
+
+    for (var mode in AWFYMaster.modes)
+        AWFYMaster.modes[mode].used = false;
 
     this.hasLegend = false;
     this.aggregate = { };
@@ -599,22 +807,42 @@ AWFY.parseURL = function () {
     if ('machine' in this.queryParams)
         machineId = parseInt(this.queryParams['machine']);
     else
-        machineId = 11;
+        machineId = this.DEFAULT_MACHINE_ID;
 
     var view = this.queryParams['view'];
-    if (!view || (view != 'overview' && view != 'breakdown'))
+    if (!view || (view != 'overview' && view != 'breakdown' && view != 'single'))
         view = 'overview';
-    if (view == 'breakdown') {
+    if (view == 'breakdown' || view == 'single') {
         var suiteName = this.queryParams['suite'];
         if (!suiteName || !AWFYMaster.suites[suiteName])
             view = 'overview';
+    }
+    var start = null;
+    var end = null;
+    if (view == 'single') {
+        var subtest = this.queryParams['subtest'];
+        var suite = AWFYMaster.suites[suiteName];
+        var found = false;
+        for (var i = 0; i < suite.tests.length; i++) {
+            var test = suite.tests[i];
+            if (subtest != test)
+                continue;
+            found = true;
+            break;
+        }
+        if (subtest && !found) {
+            view = 'breakdown';
+        } else {
+            start = (this.queryParams['start'])?parseInt(this.queryParams['start']):null;
+            end = (this.queryParams['end'])?parseInt(this.queryParams['end']):null;
+        }
     }
 
     // Make sure the menus are up to date.
     if (this.view != 'none') {
         if (this.machineId != machineId) {
-            $('#machinelist .clicked').removeClass('clicked');
-            $('#machine' + machineId).addClass('clicked');
+            this.updateMachineList(machineId);
+            this.updateSuiteList(machineId);
         }
         $('#breakdownlist .clicked').removeClass('clicked');
         if (view == 'overview')
@@ -628,11 +856,13 @@ AWFY.parseURL = function () {
         if (view == 'overview') {
             if (machineId != this.machineId)
                 this.changeMachine(machineId);
+            this.lastHash = window.location.hash;
             return;
-        } else if (view == 'breakdown') {
+        } else if (view == 'breakdown' || view == 'single') {
             if (suiteName == this.suiteName) {
                 if (machineId != this.machineId) 
                     this.changeMachine(machineId);
+                this.lastHash = window.location.hash;
                 return;
             }
         }
@@ -645,52 +875,47 @@ AWFY.parseURL = function () {
         this.showOverview();
     else if (view == 'breakdown')
         this.showBreakdown(suiteName);
+    else if (view == 'single')
+        this.showSingle(suiteName, subtest, start, end);
 
     this.lastHash = window.location.hash;
 }
 
-AWFY.startup = function () {
-    this.panes = [$('#ss-graph'),
-                  $('#kraken-graph'),
-                  $('#v8real-graph'),
-                  $('#octane-graph')];
-
-    this.parseURL();
-
-    // Add machine information to the menu.
+AWFY.updateMachineList = function (machineId) {
     var menu = $('#machinelist');
+    menu.empty();
+    var showAll = false;
+    if (!AWFYMaster.machines[machineId].frontpage)
+        showAll = true;
     for (var id in AWFYMaster.machines) {
         var machine = AWFYMaster.machines[id];
+        if (!showAll && !machine.frontpage)
+            continue;
         var li = $('<li></li>');
         var a = $('<a href="#" id="machine' + id + '"></a>');
         a.click((function (id) {
             return (function (event) {
+                this.updateMachineList(parseInt(id));
+                this.updateSuiteList(parseInt(id));
                 this.changeMachine(parseInt(id));
-                $('#machinelist .clicked').removeClass('clicked');
-                $(event.target).addClass('clicked');
                 this.pushState();
                 return false;
             }).bind(this);
         }).bind(this)(id));
-        if (parseInt(id) == this.machineId)
+        if (parseInt(id) == machineId)
             a.addClass('clicked');
+        if (!machine.recent_runs)
+            a.addClass('inactive');
         a.html(machine.description);
         a.appendTo(li);
         li.appendTo(menu);
     }
+    $('#message').html(AWFYMaster.machines[machineId].message+"<br />&nbsp;");
+}
 
-    // Hide it by default.
-    $('#machinedrop').click((function (event) {
-        if (!menu.is(':visible') && !$('#about').is(':visible')) {
-            menu.show();
-        } else {
-            menu.hide();
-        }
-        return false;
-    }).bind(this));
-    menu.hide();
-
+AWFY.updateSuiteList = function (machineId) {
     var breakdown = $('#breakdownlist');
+    breakdown.empty(); 
 
     var home = $('<a href="#" id="suite-overview"></a>').click(
         (function (event) {
@@ -705,7 +930,20 @@ AWFY.startup = function () {
     if (this.view == 'overview')
         home.addClass('clicked');
 
-    for (var name in AWFYMaster.suites) {
+    var suites = [];
+    for (var i=0; i < AWFYMaster.machines[machineId].suites.length; i++) {
+        var name = AWFYMaster.machines[machineId].suites[i];
+        if (AWFYMaster.suites[name] && AWFYMaster.suites[name].visible == 1)
+            suites.push([name, AWFYMaster.suites[name]]);
+    }
+
+    suites.sort(function (a, b) {
+        return a[1].sort_order - b[1].sort_order;
+    });
+
+    for (var i = 0; i < suites.length; i++) {
+        var name = suites[i][0];
+        var suite = suites[i][1];
         var li = $('<li></li>');
         var a = $('<a href="#" id="suite-' + name + '"></a>');
         a.click((function (name) {
@@ -717,12 +955,41 @@ AWFY.startup = function () {
                 return false;
             }).bind(this);
         }).bind(this)(name));
-        if (this.view == 'breakdown' && this.suiteName == name)
+        if ((this.view == 'breakdown' || this.view == 'single') && this.suiteName == name)
             a.addClass('clicked');
-        a.html(AWFYMaster.suites[name].description);
+        a.html(suite.description);
         a.appendTo(li);
         li.appendTo(breakdown);
     }
+}
+
+AWFY.startup = function () {
+    this.panes = [$('#ss-graph'),
+                  $('#kraken-graph'),
+                  $('#octane-graph')];
+
+    this.parseURL();
+
+    // Add machine information to the menu.
+    var menu = $('#machinelist');
+    this.updateMachineList(this.machineId);
+
+    // Hide it by default.
+    $('#machinedrop').click((function (event) {
+        if (!menu.is(':visible') && !$('#about').is(':visible')) {
+            menu.show();
+        } else {
+            menu.hide();
+        }
+        return false;
+    }).bind(this));
+    menu.hide();
+
+    // Add suite information to menu
+    var breakdown = $('#breakdownlist');
+    this.updateSuiteList(this.machineId);
+
+    // Hide it by default.
     $('#bkdrop').click((function (event) {
         if (!breakdown.is(':visible') && !$('#about').is(':visible')) {
             breakdown.show();

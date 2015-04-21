@@ -1,0 +1,31 @@
+[main]
+slaveType = linux-desktop
+repos = /Users/mozilla/awfy/repos
+tmpDir= /tmp/
+timeout = 20 ; in minutes
+serverURL = http://localhost:8000/
+
+machine = 16
+updateURL = http://www.arewefastyet.com/???
+
+[engines]
+list = mozilla
+
+[benchmarks]
+dir = /Users/mozilla/awfy/benchmarks
+browserList = benchmark.remote.octane,
+              benchmark.remote.massive,
+              benchmark.remote.jetstream,
+              benchmark.remote.speedometer,
+              benchmark.remote.kraken,
+              benchmark.remote.sunspider,
+              benchmark.remote.browsermark
+shellList = 
+
+[mozilla]
+nightlyDir = http://ftp.mozilla.org/pub/mozilla.org/firefox/tinderbox-builds/mozilla-inbound-linux64/
+pgoDir = http://ftp.mozilla.org/pub/mozilla.org/firefox/tinderbox-builds/mozilla-inbound-linux-pgo/
+
+[chrome]
+buildInfoUrl = http://build.chromium.org/p/chromium.lkgr/builders/Win
+nightlyDir = http://commondatastorage.googleapis.com/chromium-browser-continuous/Win/

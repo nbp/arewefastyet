@@ -10,19 +10,27 @@
  <script type="text/javascript" src="jquery/jquery.ba-hashchange.min.js"></script>
  <script type="text/javascript" src="flot/jquery.flot.js"></script>
  <script type="text/javascript" src="flot/jquery.flot.selection.js"></script>
- <script type="text/javascript" src="data/master.js"></script>
+ <script type="text/javascript" src="data.php?file=master.js"></script>
  <script type="text/javascript" src="awfy.js"></script>
  <script type="text/javascript" src="frontpage.js"></script>
  <script type="text/javascript" src="tooltip.js"></script>
 </head>
 <body>
+<!--[if IE 6]><body class="ie ie6"><![endif]-->
+<!--[if IE 7]><body class="ie ie7"><![endif]-->
+<!--[if IE 8]><body class="ie ie8"><![endif]-->
+<!--[if IE 9]><body class="ie ie9"><![endif]-->
+<!--[if gt IE 9]><body class="ie"><![endif]-->
+<!--[if !IE ]><!-->
+<body>
+<!--<![endif]-->
   <script type="text/javascript">
     $(document).ready(function () {
 	AWFY.startup();
     });
   </script>
-
  <div class="graph-row">
+  <div id="message"></div>
   <div id="navcontainer">
     <ul id="legend"></ul>
     <br><br>
@@ -45,16 +53,23 @@
     <div class="graph" id="ss-graph"><h2>Loading...</h2></div>
   </div>
  </div>
- <br>
- <br>
- <br>
+ <br><br><br>
  <div>
+  <div class="graph-row">
+   <div class="graph-container">
+     <div id="octane-label">octane score</div>
+     <div class="graph" id="octane-graph"><h2>Loading...</h2></div>
+   </div>
+  </div>
+  <br><br><br>
+  <!--
   <div class="graph-row">
    <div class="graph-container">
      <div id="v8-label">v8bench score</div>
      <div class="graph" id="v8real-graph"><h2>Loading...</h2></div>
    </div>
   </div>
+  -->
  </div>
  <div id="breakdown">
  </div>
@@ -85,8 +100,16 @@
     <p>AWFY is automated. Throughout the day, we checkout the latest source code to each available JavaScript engine, and compile it. Then we run it through some benchmark suites, and tally up the scores into a database. This data gets exported as JSON which can then be easily plotted.</p>
    </li>
    <li>
-    <p>Why aren't Opera or IE available?</p>
-    <p>AWFY currently runs standalone, command-line JavaScript shells - not the web browsers that embed them. Opera doesn't provide a standalone shell, and IE doesn't work on Mac or Linux (which is where we benchmark right now).</p>
+    <p>Why is Opera not available?</p>
+    <p>Historically AWFY runs standalone, command-line JavaScript shells - not the web browsers that embed them. Opera doesn't provide a standalone shell. Currently we have some machines that also runs browser versions, but now Opera has switched to V8 (js engine of Chrome). As a result it doesn't seems that important to include a seperate line, since you can mostly look to the v8 line.</p>
+   </li>
+   <li>
+    <p>Why is IE not available?</p>
+    <p>AWFY runs cutting-edge not released yet versions of the browsers to track improvements and regressions as they happen. The browsers get tested multiple times a day, since that is how fast performance can change from one to another build. IE doesn't provide nightly builds. So a new build is only available every few months/years. In that regard it doesn't really make sense to run benchmarks on it every few hours. (This is nexto the fact that currently only one machine would be able to run IE versions and that IE builds are quite invasive and touch a lot of the machine OS upon install and might cause unrelated regressions on other browsers). Maybe the release of Spartan will bring us closer on having IE on AWFY.</p>
+   </li>
+   <li>
+    <p>Why is Safari not tested on 32-bit machine?</p>
+    <p>Safari defaults to 64-bit machines and doesn't need to worry about 32-bit anymore. Big pieces of their engine is 64-bit only. As a result showing Safari on 32-bit machines would give incorrect results.</p>
    </li>
    <li>
     <p>What are the graphs?</p>
@@ -102,15 +125,11 @@
    </li>
    <li>
     <p>Is this open source?</p>
-    <p>Fo' sho', <a href="https://github.com/dvander/arewefastyet">https://github.com/dvander/arewefastyet</a></p>
-   </li>
-   <li>
-    <p>Can I still see the original AWFY, from the JaegerMonkey days?</p>
-    <p>Yup: <a href="http://arewefastyet.com/historic/old-awfy.php">http://arewefastyet.com/historic/old-awfy.php</a></p>
+    <p>Fo' sho', <a href="https://github.com/haytjes/arewefastyet">https://github.com/haytjes/arewefastyet</a></p>
    </li>
    <li>
     <p>Suggestions?</p>
-    <p><a href="mailto:danderson@mozilla.com">e-mail</a></p>
+    <p><a href="mailto:Hannes Verschore <hverschore@mozilla.com>">e-mail</a></p>
   </ul>
  </div>
  <br>

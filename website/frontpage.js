@@ -1,10 +1,14 @@
 // vim: set ts=4 sw=4 tw=99 et:
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-function Display(awfy, id, elt)
+function Display(awfy, id, domid, elt)
 {
     this.awfy = awfy;
     this.id = id;
+    this.domid = domid;
     this.elt = elt;
     this.attachedTips = [];
     this.plot = null;
@@ -187,8 +191,17 @@ Display.prototype.draw = function () {
     for (var i = 0; i < this.orig_graph.info.length; i++) {
         var info = this.orig_graph.info[i];
         var mode = AWFYMaster.modes[info.modeid];
+        if (!mode)
+            continue;
+
+        // Strip JM+TI, BC
+        if (info.modeid == 12 || info.modeid == 15)
+            continue;
+
+        mode.used = true;
         if (mode.hidden)
             continue;
+
         new_info.push(info);
         new_lines.push(this.orig_graph.lines[i]);
     }
@@ -206,7 +219,7 @@ Display.prototype.draw = function () {
     options.borderWidth = 1.5;
     options.borderColor = "#BEBEBE";
     options.legend = { show: false };
-    options.xaxis = { };
+    options.xaxis = {  };
     options.yaxis = { };
     options.grid = { hoverable: true, clickable: true };
     options.selection = { mode: 'x' }
@@ -216,15 +229,11 @@ Display.prototype.draw = function () {
         options.yaxis.min = 0;
 
     if (this.graph.direction == 1) {
-		options.yaxis.transform = function (v) {
+	options.yaxis.transform = function (v) {
             return -v;
         };
-		options.yaxis.inverseTransform = function (v) {
+	options.yaxis.inverseTransform = function (v) {
             return -v;
-        };
-    } else {
-        options.yaxis.tickFormatter = function (v, axis) {
-            return v + 'ms';
         };
     }
 
@@ -239,14 +248,27 @@ Display.prototype.draw = function () {
             var axis = plot.getAxes();
             var rx = Math.round(axis.xaxis.c2p(x));
             if (this.graph.timelist[rx] < this.graph.earliest) {
-                ctx.strokeRect(x - radius / 2, y - radius / 2, radius, radius);
-                ctx.clearRect(x - radius / 4, y - radius / 4, radius / 2, radius / 2);
+                ctx.strokeRect(x - radius / 3, y - radius / 3, radius * 2/3, radius * 2/3);
+                // Disable clearRect due to bug in Firefox for Android (bug 936177)
+                //ctx.clearRect(x - radius / 4, y - radius / 4, radius / 2, radius / 2);
             } else {
                 ctx.arc(x, y, radius, 0, shadow ? Math.PI : Math.PI * 2, false);
             }
         }).bind(this);
 
         options.xaxis.ticks = this.aggregateTicks();
+        options.xaxis.transform = (function (v) {
+            if (v < 30)
+                return v;
+            var total = this.graph.timelist.length - 30;
+            return 30 + (v - 30)/total * 30;
+        }).bind(this);
+        options.xaxis.inverseTransform = (function (v) {
+            if (v < 30)
+                return v;
+            var total = this.graph.timelist.length - 30;
+            return 30 + (v - 30)/30 * total;
+        }).bind(this);
     }
 
     options.yaxis.tickFormatter = function  (v, axis) {
@@ -267,6 +289,17 @@ Display.prototype.draw = function () {
     }
 
     this.plot = $.plot(this.elt, this.graph.lines, options);
+
+    if (this.graph.direction == 1) {
+        var yaxisLabel = $("<div class='axisLabel yaxisLabel'></div>")
+                                                        .text("Score")
+                                                  .appendTo(this.elt);
+    } else {
+        var yaxisLabel = $("<div class='axisLabel yaxisLabel'></div>")
+                                          .text("Execution Time (ms)")
+                                                  .appendTo(this.elt);
+    }
+    yaxisLabel.css("margin-top", yaxisLabel.width() / 2 - 20);
 }
 
 Display.prototype.plotSelected = function (event, ranges) {
@@ -286,6 +319,8 @@ Display.prototype.plotSelected = function (event, ranges) {
 
     var start = this.graph.timelist[from_x];
     var end = this.graph.timelist[to_x];
+
+    AWFY.trackZoom(start, end);
 
     var prev = this.zoomInfo.prev;
     if (prev && this.zoomInfo.level == 'month') {
@@ -400,6 +435,8 @@ Display.prototype.unzoom = function () {
     this.plot.clearSelection();
     this.detachTips();
     this.zoomInfo.level = 'aggregate';
+
+    AWFY.trackZoom(null, null);
 }
 
 Display.prototype.detachTips = function () {
@@ -412,14 +449,26 @@ Display.prototype.createToolTip = function (item, extended) {
     var so = extended ? '<strong>' : '';
     var sc = extended ? '</strong>' : '';
 
-    var x = item.datapoint[0];
-    var y = item.datapoint[1];
-    var text = so + 'score: ' + sc + y.toFixed() + '<br>';
-
     // Figure out the line this corresponds to.
     var line = this.graph.info[item.seriesIndex];
     if (!line)
         return;
+
+    var text = "";
+    var x = item.datapoint[0];
+    var y = item.datapoint[1];
+
+    // Show suite version.
+    if (line.data[x][3]) {
+        var suiteVersion = AWFYMaster.suiteversions[line.data[x][3]]["name"];
+        text += so + 'suite: ' + sc + suiteVersion + '<br>';
+    }
+
+    // Show score.
+    if (this.graph.direction == -1)
+         text += so + 'score: ' + sc + y.toFixed(2) + 'ms<br>';
+    else
+         text += so + 'score: ' + sc + y.toFixed() + '<br>';
 
     // Find the point previous to this one.
     var prev = null;
@@ -491,7 +540,8 @@ Display.prototype.createToolTip = function (item, extended) {
             if (prev && vendor.rangeURL) {
                 var url = vendor.rangeURL
                             .replace("{from}", prev[1])
-                            .replace("{to}", point[1]);
+                            .replace("{to}", point[1])
+                            .replace("{num}", point[1] - prev[1]);
                 text += ' (<a href="' + url + '">changelog</a>)';
             }
         }
