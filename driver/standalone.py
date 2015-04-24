@@ -1,6 +1,7 @@
 import re
 import sys
 import ConfigParser
+import slaves
 import submitter
 import benchmark
 import utils
@@ -65,7 +66,8 @@ if utils.config.get('main', 'local') == 'yes':
     submit = submitter.getSubmitter('print')
 else:
     submit = submitter.getSubmitter('remote')
-submit = submit(utils.config.get('main', 'machine'))
+slave = slaves.Slave('main')
+submit = submit(slave)
 
 # Run benchmarks, filter and collect outputs.
 for suite in benchmarks.keys():
