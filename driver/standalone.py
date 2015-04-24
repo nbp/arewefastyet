@@ -62,7 +62,7 @@ benchmarks = {
 
 utils.config.init(configFile)
 if utils.config.get('main', 'local') == 'yes':
-    submit = submitter.getSubmitter('print') FakeSubmitter(config)
+    submit = submitter.getSubmitter('print')
 else:
     submit = submitter.getSubmitter('remote')
 submit = submit(utils.config.get('main', 'machine'))
