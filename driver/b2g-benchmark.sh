@@ -86,7 +86,7 @@ find_device_name() {
       # The device is found by adb, then make a symbolic link to where
       # is is located on the bus system.
       if test \! -e $SYS_DEVICE_LNK -o \
-	      $(cat $SYS_DEVICE_LNK/serial) != $FASTBOOT_SERIAL_NO
+	      "$(cat $SYS_DEVICE_LNK/serial 2>/dev/null)" != "$FASTBOOT_SERIAL_NO"
       then
 	  local sys=$(find /sys -name serial | xargs grep -l $FASTBOOT_SERIAL_NO 2> /dev/null)
 	  sys=$(dirname $sys)
