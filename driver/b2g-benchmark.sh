@@ -121,7 +121,7 @@ WIFINET=$SHARED_SETUP_DIR/wifi.server.network
 # This configuration file inform the standalone driver of AWFY how to
 # upload results.
 AWFY_CONFIG=$PERSO_SETUP_DIR/awfy.config
-LOCAL_AWFY_CONFIG=$SHARED_SETUP_DIR/awfy-local.config
+LOCAL_AWFY_CONFIG=$PERSO_SETUP_DIR/.awfy-local.config
 
 # Contains the identifer which is used to identify this build/engine
 # on the remote server.
@@ -508,6 +508,7 @@ benchAndPrint() {
 
   reportStage Benchmark and Print
   setupForBenchmark
+  sed 's/local=no/local=yes/' $AWFY_CONFIG > $LOCAL_AWFY_CONFIG
   python $AWFY_DRIVER $(info) $LOCAL_AWFY_CONFIG $engine $B2G_DIR 2>&1 | tee
 }
 
