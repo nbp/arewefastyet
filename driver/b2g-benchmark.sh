@@ -544,16 +544,111 @@ octane() {
 
 octane2() {
   reportStage Run Octane 2.0
+
+  if false; then
+      cat <<EOF
+Shell-like octane results:
+Richards: 1060
+DeltaBlue: 3154
+Crypto: 2332
+RayTrace: 6197
+EarleyBoyer: 2404
+RegExp: 238
+Splay: 686
+SplayLatency: 831
+NavierStokes: 2835
+PdfJS: 963
+Mandreel: 1516
+MandreelLatency: 1318
+Gameboy: 2412
+CodeLoad: 1716
+Box2D: 1771
+zlib: 5451
+Typescript: 1974
+Score: 1680
+End of shell-like results.
+EOF
+      return
+  fi
+
   runBenchmark $BROWSER_BENCHMARK/test_bench_octane2.py
 }
 
 sunspider() {
   reportStage Run Sunspider
+
+  if false; then
+      cat <<EOF
+Shell-like sunspider results:
+===============================================
+RESULTS (means and 95% confidence intervals)
+-----------------------------------------------
+Total:                       19761.2ms +/- 4.2%
+-----------------------------------------------
+  ai:                         1668.0ms +/- 5.3%
+    astar:                    1668.0ms +/- 5.3%
+  audio:                      8853.2ms +/- 8.9%
+    beat-detection:           2013.0ms +/- 24.2%
+    dft:                      3496.8ms +/- 6.0%
+    fft:                      1509.0ms +/- 27.0%
+    oscillator:               1834.4ms +/- 20.4%
+  imaging:                    4160.8ms +/- 0.8%
+    gaussian-blur:            1517.2ms +/- 0.6%
+    darkroom:                 1058.2ms +/- 1.7%
+    desaturate:               1585.4ms +/- 0.8%
+  json:                       1227.2ms +/- 16.2%
+    parse-financial:           662.0ms +/- 44.5%
+    stringify-tinderbox:       565.2ms +/- 25.6%
+  stanford:                   3852.0ms +/- 4.7%
+    crypto-aes:                857.6ms +/- 6.1%
+    crypto-ccm:               1131.8ms +/- 16.5%
+    crypto-pbkdf2:            1299.6ms +/- 1.3%
+    crypto-sha256-iterative:   563.0ms +/- 6.6%
+
+End of shell-like results.
+EOF
+      return
+  fi
+
   runBenchmark $BROWSER_BENCHMARK/test_bench_sunspider.py
 }
 
 kraken() {
   reportStage Run Kraken
+
+  if false; then
+      cat <<EOF
+Shell-like kraken results:
+===============================================
+RESULTS (means and 95% confidence intervals)
+-----------------------------------------------
+Total:                       19761.2ms +/- 4.2%
+-----------------------------------------------
+  ai:                         1668.0ms +/- 5.3%
+    astar:                    1668.0ms +/- 5.3%
+  audio:                      8853.2ms +/- 8.9%
+    beat-detection:           2013.0ms +/- 24.2%
+    dft:                      3496.8ms +/- 6.0%
+    fft:                      1509.0ms +/- 27.0%
+    oscillator:               1834.4ms +/- 20.4%
+  imaging:                    4160.8ms +/- 0.8%
+    gaussian-blur:            1517.2ms +/- 0.6%
+    darkroom:                 1058.2ms +/- 1.7%
+    desaturate:               1585.4ms +/- 0.8%
+  json:                       1227.2ms +/- 16.2%
+    parse-financial:           662.0ms +/- 44.5%
+    stringify-tinderbox:       565.2ms +/- 25.6%
+  stanford:                   3852.0ms +/- 4.7%
+    crypto-aes:                857.6ms +/- 6.1%
+    crypto-ccm:               1131.8ms +/- 16.5%
+    crypto-pbkdf2:            1299.6ms +/- 1.3%
+    crypto-sha256-iterative:   563.0ms +/- 6.6%
+
+End of shell-like results.
+EOF
+      return
+  fi
+
   runBenchmark $BROWSER_BENCHMARK/test_bench_kraken.py
 }
 
