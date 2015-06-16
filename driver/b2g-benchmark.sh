@@ -45,8 +45,9 @@ reportStage() {
 
 # Utilities to help finding the corresponding changesets between mercurial and gecko.
 changesetToCommit() {
-#    ssh git@hydra changeset-to-commit "$1"
-    local commit=$(ssh npierron@people.mozilla.org '~/changeset-to-commit.sh' "$1")
+    local chgset=$1
+    local commit=$(curl 'https://api.pub.build.mozilla.org/mapper/gecko-dev/rev/hg/'"$chgset" |\
+                   sed -n '/\([^ ]*\) '"$chgset"'[^ ]*/ { s//\1/; p; Q }')
     if test -z "$commit" ; then
 	commit="hg-$1"
     fi
@@ -54,8 +55,9 @@ changesetToCommit() {
 }
 
 commitToChangeset() {
-#    ssh git@hydra commit-to-changeset "$1"
-    local chgset=$(ssh npierron@people.mozilla.org '~/commit-to-changeset.sh' "$1")
+    local commit=$1
+    local chgset=$(curl 'https://api.pub.build.mozilla.org/mapper/gecko-dev/rev/git/'"$commit" |\
+                          sed -n '/'"$commit"'[^ ]* \([^ ]*\)/ { s//\1/; p; Q }')
     if test -z "$chgset" ; then
 	chgset="git-$1"
     fi
