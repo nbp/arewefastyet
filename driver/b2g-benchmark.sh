@@ -386,6 +386,7 @@ setupHostForBenchmark() {
   reportStage Update Harness
 
   # Create install directory
+  rm -rf $INSTALL_DIR
   mkdir -p $INSTALL_DIR
   mkdir -p $INSTALL_DIR/lib/python2.7/site-packages
 
@@ -407,13 +408,26 @@ setupHostForBenchmark() {
           ' ./requirements.txt.old > ./requirements.txt
       fi
 
-      python setup.py develop --prefix=$INSTALL_DIR -N || \
-	  python setup.py install --prefix=$INSTALL_DIR || \
-          true
+      while true; do
+          python setup.py develop --prefix=$INSTALL_DIR -N && break || true;
+	  python setup.py install --prefix=$INSTALL_DIR && break || true;
+
+          # Some error are caused by the fact that the requirement
+          # file no longer have any version filter.  Copy the old
+          # file, and test again.
+	  mv ./requirements.txt.old ./requirements.txt
+          python setup.py develop --prefix=$INSTALL_DIR -N && break || true;
+	  python setup.py install --prefix=$INSTALL_DIR && break || true;
+
+	  reportStage !!! Unable to install $path
+	  exit 1;
+      done
 
       if test -e ./requirements.txt; then
 	  mv ./requirements.txt.old ./requirements.txt
       fi
+
+      echo $path Installed
   done
 }
 
