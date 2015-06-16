@@ -1,9 +1,14 @@
 .subnav {
 	float: right;
     line-height: $unit*8;
+	a {
+		cursor: pointer;
+	}
 }
 
-.box {
+.regression {
+  cursor: pointer;
+  display: block;
 
   .title {
     text-transform: uppercase;
@@ -16,15 +21,14 @@
   }
 
   .footer {
-    .status {
-	  .status {
-		  text-transform: uppercase;
-	  }
+	padding-top: $unit*2;
+	padding-bottom: $unit;
+
+    .status .status {
+		text-transform: uppercase;
 	}
 
-    a, button {
-
-	  &.bug {
+	.bug {
 		float: right;
 
 		.edit {
@@ -34,7 +38,6 @@
 			margin-left: $unit;
 			margin-right: $unit;
 		}
-	  }
     }
   }
 }

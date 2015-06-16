@@ -19,6 +19,13 @@ AWFY.subtest = null;
 AWFY.lastHash = null;
 AWFY.lastRefresh = 0;
 
+// Hide a view modes by default. Since they aren't active anymore
+//AWFYMaster.modes["30"].hidden = true
+AWFYMaster.modes["35"].hidden = true
+AWFYMaster.modes["27"].hidden = true
+AWFYMaster.modes["29"].hidden = true
+AWFYMaster.modes["22"].hidden = true
+
 AWFY.request = function (files, callback) {
     var url = window.location.protocol + '//' +
               window.location.host;
@@ -386,6 +393,8 @@ AWFY.condense = function (graph, max) {
             var count = 0;
             var first = null;
             var last = null;
+            var suite_version = null
+            var id = null
             for (var j = start; j < pos + slice && j < oldinfo.data.length; j++) {
                 var point = oldinfo.data[j];
                 if (!point || !point[0])
@@ -397,15 +406,15 @@ AWFY.condense = function (graph, max) {
                 else
                     last = first
                 average = ((average * count) + point[0]) / (count + 1);
+                suite_version = point[3]
+                id = point[4]
                 count += 1;
             }
 
             var score = average ? average : null;
+            id = count == 1 ? id : null
             newline.data.push([timelist.length, score]);
-            if (count)
-                newinfo.data.push([average, first, last])
-            else
-                newinfo.data.push([average, first])
+			newinfo.data.push([average, first, last, suite_version, id])
         }
 
         timelist.push(graph.timelist[start]);
@@ -685,6 +694,20 @@ AWFY.showSingle = function (name, subtest, start, end) {
     }
 
     this.lastRefresh = Date.now();
+}
+
+AWFY.isSubtest = function() {
+	if (this.view == 'overview')
+		return false;
+	if (this.view == 'breakdown')
+		return true;
+	if (this.view == 'single') {
+		if (this.subtest)
+			return true; 
+		else
+			return false;
+	}
+	throw new Exception();
 }
 
 AWFY.requestRedraw = function () {

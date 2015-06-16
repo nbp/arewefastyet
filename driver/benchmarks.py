@@ -126,6 +126,36 @@ class Octane(Benchmark):
 
         return tests
 
+class Dart(Benchmark):
+    def __init__(self):
+        super(Dart, self).__init__('dart', '0.1', 'dart')
+
+    def benchmark(self, shell, env, args):
+        full_args = [shell]
+        if args:
+            full_args.extend(args)
+        full_args.append('run.js')
+
+        print(os.getcwd())
+        output = utils.RunTimedCheckOutput(full_args, env=env)
+
+        tests = []
+        lines = output.splitlines()
+
+        total = 0.0
+        for x in lines:
+            m = re.search("(.+)\(RunTime\): (\d+\.\d+)", x)
+            if not m:
+                continue
+            name = m.group(1)
+            score = float(m.group(2))/1000
+            total += score
+            tests.append({ 'name': name, 'time': score})
+            print(str(score) + '    - ' + name)
+        tests.append({ 'name': '__total__', 'time': total })
+
+        return tests
+
 class SunSpiderBased(Benchmark):
     def __init__(self, suite, version, folder, runs):
         super(SunSpiderBased, self).__init__(suite, version, folder)
@@ -176,7 +206,7 @@ class Kraken(SunSpiderBased):
 
 class Assorted(SunSpiderBased):
     def __init__(self):
-        super(Assorted, self).__init__('misc', '0.3', 'misc', 3)
+        super(Assorted, self).__init__('misc', '0.5', 'misc', 3)
 
 class Shumway(Benchmark):
     def __init__(self):
@@ -189,6 +219,25 @@ class Shumway(Benchmark):
                             "http://mozilla.github.io/shumway/shell/shumway-shell.zip",
                             "/tmp/shumway-shell.zip")
         utils.unzip("/tmp/", "shumway-shell.zip")
+
+    def omit(self, mode):
+        if "shumway_interp" not in mode.name:
+            # JIT is broken atm. Disable running
+            return True
+        elif mode.name not in ["jsc_shumway_interp", "jmim_shumway_interp", "v8_shumway_interp"]:
+            # Only run interpreter for some modes
+            return True
+
+    def _run(self, submit, native, modes):
+        # Run the full shumway jit.
+        super(Shumway, self)._run(submit, native, modes)
+
+        # Run the shumway interpreter.
+        interp_modes = []
+        for mode in modes:
+            interp_modes.append(mode._replace(name = mode.name+"_shumway_interp"))
+        super(Shumway, self)._run(submit, native, interp_modes)
+
 
     def benchmark(self, shell, env, args):
         with utils.chdir("/tmp/"):
@@ -221,7 +270,7 @@ class Shumway(Benchmark):
                     print(score + '    - ' + name)
 
             if len(tests) > 0:
-	        tests.append({ 'name': '__total__', 'time': totalscore / len(tests)})
+                tests.append({ 'name': '__total__', 'time': totalscore / len(tests)})
             return tests
 
 Benchmarks = [AsmJSApps(),
@@ -230,7 +279,8 @@ Benchmarks = [AsmJSApps(),
               Kraken(),
               Assorted(),
               Octane(),
-              Shumway()
+              Shumway(),
+              Dart()
              ]
 
 def run(submit, native, modes):

@@ -48,6 +48,10 @@ class Mozilla(Engine):
         self.modes = [{
             'name': 'jmim',
             'env': { 'JSGC_DISABLE_POISONING': '1' }
+        }, {
+            'name': 'unboxedobjects',
+            'env': { 'JSGC_DISABLE_POISONING': '1',
+                     'JS_OPTION_USE_UNBOXED_ARRAYS': '1' }
         }]
         self.folder = "firefox"
         if not os.path.isdir(self.tmp_dir + self.folder):
@@ -116,7 +120,7 @@ class Mozilla(Engine):
             print subprocess.check_output(["adb", "install", "-r", self.tmp_dir + self.folder + "/fennec.apk"])
         elif self.slaveType == "mac-desktop":
             if os.path.exists("/Volumes/Nightly"):
-                print subprocess.check_output(["hdiutil", "detach", "/Volumes/Nightly"])
+                print subprocess.check_output(["hdiutil", "detach", "-force", "/Volumes/Nightly"])
             print subprocess.check_output(["hdiutil", "attach", self.tmp_dir + self.folder + "/firefox.dmg"])
         elif self.slaveType == "linux-desktop":
             utils.unzip(self.tmp_dir + self.folder, "firefox.tar.bz2")
@@ -187,7 +191,7 @@ class Mozilla(Engine):
     def kill(self):
         if self.slaveType == "android":
             print subprocess.check_output(["adb", "shell", "pm", "clear", "org.mozilla.fennec"]);
-        elif self.slaveType == "linux-desktop":
+        elif self.slaveType == "linux-desktop" or self.slaveType == "mac-desktop":
             subprocess.Popen(["killall", "plugin-container"])
             Engine.kill(self)
         else:
@@ -198,7 +202,8 @@ class MozillaPGO(Mozilla):
         Mozilla.__init__(self)
         self.nightly_dir = utils.config.get('mozilla', 'pgoDir')
         self.modes = [{
-            'name': 'pgo'
+            'name': 'pgo',
+            'env': { 'JSGC_DISABLE_POISONING': '1' }
         }]
         self.folder = "firefox-pgo"
 

@@ -2,6 +2,7 @@ misc-basic-emptyloop
 misc-basic-intops
 misc-basic-fpops
 misc-basic-array
+misc-basic-array-forof
 misc-basic-strcat
 misc-basic-arguments
 misc-basic-closures
@@ -35,3 +36,4 @@ misc-bugs-1131099-lodash1
 misc-bugs-1131099-lodash2
 misc-bugs-1131099-underscore
 misc-bugs-1090583-dart2js-tracer
+misc-basic-hoist-bounds-check

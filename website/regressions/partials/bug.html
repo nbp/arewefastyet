@@ -1,12 +1,12 @@
 <div class='bug'>
 	<p>Textual version that can be included in a bug:</p>
 	<pre>
-AWFY detected a regression/improvement on:
+A regression/improvement was reported on AWFY:
 - slave: {{modal.machine}}
 - mode: {{modal.mode}}
 
 Regression(s)/Improvement(s):
-<span ng-repeat="score in modal.scores"><span ng-if="!score.noise">- {{score.suite}}: {{score.percent}}% ({{score.regression ? 'regression' : 'improvement'}})<br></span></span>
+<span ng-repeat="score in modal.scores"><span ng-if="!score.noise">- {{score.suite}}<span ng-if="score.suitetest">: {{score.suitetest}}</span>: {{score.percent}}% ({{score.regression ? 'regression' : 'improvement'}})<br></span></span>
 Recorded range:
 <span ng-if="modal.prev_cset!=''">- http://hg.mozilla.org/integration/mozilla-inbound/pushloghtml?fromchange={{modal.prev_cset}}&tochange={{modal.cset}}</span>
 

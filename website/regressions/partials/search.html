@@ -1,4 +1,4 @@
-<div ng-controller="overviewCtrl" class='overview'>
+<div class='overview'>
   <div class='subheader'>
     <div class='button' ng-repeat="software in softwares">
       <div class='title'>{{software.name}}</div>
@@ -10,7 +10,13 @@
   </div>
 
   <div class='subnav'>
-     <a ng-href="#/notTriaged">Not triaged</a> / <a ng-href="#/open">Open</a> / <a ng-href="#/improvements">Improvements</a> / <a ng-click="advancedSearch()">Advanced search</a>
+     <a ng-href="#/notTriaged">
+      Not triaged
+      <span ng-if="triaged_no">({{triaged_no}})</span>
+	 </a> /
+	 <a ng-href="#/open">Open</a> / 
+	 <a ng-href="#/improvements">Improvements</a> / 
+     <a ng-click="advancedSearch()">Advanced search</a>
   </div>
 
   <h2>Regressions</h2>
@@ -41,19 +47,31 @@
 	    >
         {{state.name}}
 	  </label></br>
+      <b>Bug: </b>
+      <label>
+        <input
+          type="text"
+          ng-model="bug"
+        >
+      </label></br>
 	  <input type='button' value='Search' class='button_submit' ng-click="search()">
     </div>
   </div>
 
+<h3 ng-if='title'>{{title}}</h3>
+
+<pagination total-items="items" ng-model="currentPage" class="pagination-sm" boundary-links="true" rotate="false" ng-change="fetchPage()"></pagination>
+
   <div>
-    <div class='box' ng-repeat="regression in regressions" ng-click="open(regression.id)">
+    <a class='box regression' ng-repeat="regression in regressions" ng-click="open(regression.id)"
+       ng-href='#/regression/{{regression.id}}'>
 	  <div class='header'>
         <div class='machine'>{{regression.machine}}</div>
         <div class='mode'>{{regression.mode}}</div>
         <div class='stamp'>{{regression.stamp | date:'dd MMM yy HH:mm'}}</div>
       </div>
       <div class='content'>
-        <div ng-repeat="score in regression.scores | orderBy:'-age'" class='regression'>
+        <div ng-repeat="score in regression.scores | orderBy:'!regression + suiteversion + suitetest'" class='regression'>
           <span ng-if="!(score.noise*1)">
 			<div class='suite'>{{score.suiteversion}}<span ng-if="score.suitetest">:
 				{{score.suitetest}}</span>
@@ -66,16 +84,21 @@
         </div>
       </div>
       <div class='footer'>
-        <a class='bug' ng-href="https://bugzilla.mozilla.org/show_bug.cgi?id={{regression.bug}}" ng-if="regression.bug!=0">
+        <!--
+        <span class='bug' ng-if="regression.bug!=0">
 			#{{regression.bug}}
-		</a>
-        <a class='status'>Status: 
+		</span>
+        -->
+        <span class='status'>Status: 
 			<span class='status'>{{regression.status}}</span>
 			<span ng-if='regression.status_extra'>: {{regression.status_extra}}</span>
-		</a>
+		</span>
       </div>
-    </div>
+    </a>
   </div>
+
+<pagination total-items="items" ng-model="currentPage" class="pagination-sm" boundary-links="true" rotate="false" ng-change="fetchPage()"></pagination>
+
 </div>
 
 <div ng-controller="ffIconCtrl"></div>
