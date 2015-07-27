@@ -20,6 +20,10 @@ INSTALL_DIR=$PERSO_SETUP_DIR/.usr
 export PYTHONPATH=$INSTALL_DIR/lib/python2.7/site-packages:
 export PATH=$INSTALL_DIR/bin:$PATH
 
+# Python keeps writting bytecode, and installing/using either outdated versions
+# Prevent the generation of any bytecode by exporting the following env var.
+export PYTHONDONTWRITEBYTECODE=1
+
 
 debug() {
   set -xe
