@@ -25,7 +25,7 @@ $data = array();
 for ($i=0; $i < count($ids); $i++) {
 
 	$query = mysql_query("SELECT awfy_regression.id, machine, mode_id, awfy_run.stamp,
-                                 build_id, cset, bug, awfy_regression.status, detector
+                                 build_id, prev_build_id, cset, bug, awfy_regression.status, detector
 						  FROM awfy_regression
 						  INNER JOIN awfy_build ON build_id = awfy_build.id
 						  INNER JOIN awfy_run ON run_id = awfy_run.id
@@ -45,7 +45,7 @@ for ($i=0; $i < count($ids); $i++) {
 		"scores" => array()
 	);
 	$qScores = mysql_query("SELECT * FROM awfy_regression_score
-						    WHERE build_id = '".$output["build_id"]."'") or die(mysql_error());
+						    WHERE regression_id = '".$output["id"]."'") or die(mysql_error());
 	while ($scores = mysql_fetch_assoc($qScores)) {
 		$suite_version_id = get("score", $scores["score_id"], "suite_version_id");
 		$score = array(
@@ -55,19 +55,24 @@ for ($i=0; $i < count($ids); $i++) {
             "noise" => $scores["noise"]
 		);
 
-		if (!$minimal) {
-			$prev = prev_($output["stamp"], $output["machine"],
-						 $output["mode_id"], $suite_version_id);
-			if (count($prev) == 1) {
-				$score["prev_score"] = $prev[0]["score"];
-				$score["prev_cset"] = $prev[0]["cset"];
-			}
-		}
+		//if (!$minimal) { // minimal outdated. Used to be slow. Not anymore.
+        if ($output["prev_build_id"] && !$minimal) {
+            $qPrevScore = mysql_query("SELECT score
+                                       FROM awfy_score
+                                       WHERE build_id = ".$output["prev_build_id"]." AND
+                                             suite_version_id = ".$suite_version_id."
+                                       LIMIT 1") or die(mysql_error());
+            if (mysql_num_rows($qPrevScore) == 1) {
+                $prevScore = mysql_fetch_assoc($qPrevScore);
+                $score["prev_score"] = $prevScore["score"];
+                $score["prev_cset"] = get("build", $output["prev_build_id"], "cset");
+            }
+        }
 
 		$regression["scores"][] = $score;
 	}
 	$qScores = mysql_query("SELECT * FROM awfy_regression_breakdown
-						    WHERE build_id = '".$output["build_id"]."'") or die(mysql_error());
+						    WHERE regression_id = '".$output["id"]."'") or die(mysql_error());
 	while ($scores = mysql_fetch_assoc($qScores)) {
 		$suite_test_id = get("breakdown", $scores["breakdown_id"], "suite_test_id");
 		$suite_version_id = get("suite_test", $suite_test_id, "suite_version_id");
@@ -79,14 +84,20 @@ for ($i=0; $i < count($ids); $i++) {
             "noise" => $scores["noise"]
 		);
 
-		if (!$minimal) {
-			$prev = prev_suite_test($output["stamp"], $output["machine"],
-									$output["mode_id"], $suite_test_id);
-			if (count($prev) == 1) {
-				$score["prev_score"] = $prev[0]["score"];
-				$score["prev_cset"] = $prev[0]["cset"];
-			}
-		}
+		//if (!$minimal) { // minimal outdated. Used to be slow. Not anymore.
+        if ($output["prev_build_id"] && !$minimal) {
+            $qPrevScore = mysql_query("SELECT awfy_breakdown.score
+                                       FROM awfy_breakdown
+                                       LEFT JOIN awfy_score ON score_id = awfy_score.id
+                                       WHERE awfy_score.build_id = ".$output["prev_build_id"]." AND
+                                             suite_test_id = ".$suite_test_id."
+                                       LIMIT 1") or die(mysql_error());
+            if (mysql_num_rows($qPrevScore) == 1) {
+                $prevScore = mysql_fetch_assoc($qPrevScore);
+                $score["prev_score"] = $prevScore["score"];
+                $score["prev_cset"] = get("build", $output["prev_build_id"], "cset");
+            }
+        }
 
 		$regression["scores"][] = $score;
 	}

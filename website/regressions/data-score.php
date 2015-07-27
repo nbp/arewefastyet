@@ -15,9 +15,10 @@ if (!isset($request->subtest))
 	$request->subtest = false;
 
 if ($request->subtest == 1 || $request->subtest == 'true') {
-	$query = mysql_query("SELECT mode_id, machine, stamp, score, suite_test_id
+	$query = mysql_query("SELECT mode_id, machine, stamp, awfy_breakdown.score, suite_test_id
                           FROM `awfy_breakdown`
-                          LEFT JOIN awfy_build ON awfy_build.id = build_id
+                          LEFT JOIN awfy_score ON awfy_score.id = score_id
+                          LEFT JOIN awfy_build ON awfy_build.id = awfy_score.build_id
                           LEFT JOIN awfy_run ON awfy_run.id = run_id
                           WHERE awfy_breakdown.id = ".$request->id) or die(mysql_error());
     $data = mysql_fetch_assoc($query);

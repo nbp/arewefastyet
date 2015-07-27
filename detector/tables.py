@@ -25,7 +25,7 @@ def camelcase(string):
     class_ = string.__class__
     return class_.join('', map(class_.capitalize, splitted_string))
 
-class DBTable:
+class DBTable(object):
   globalcache = {}
 
   def __init__(self, id):
@@ -84,6 +84,11 @@ class DBTable:
                SET "+",".join(sets)+"                                           \
                WHERE id = %s", (self.id, ))
 
+  def delete(self):
+    c = awfy.db.cursor()
+    c.execute("DELETE FROM "+self.table()+"										\
+               WHERE id = %s", (self.id, ))
+
   @staticmethod
   def valuefy(value):
     if "'" in str(value):
@@ -106,6 +111,14 @@ class DBTable:
   def all(class_):
     c = awfy.db.cursor()
     c.execute("SELECT id FROM "+class_.table())
+    for row in c.fetchall():
+        yield class_(row[0])
+
+  @classmethod
+  def where(class_, data):
+    where = [name+" = "+DBTable.valuefy(data[name]) for name in data]
+    c = awfy.db.cursor()
+    c.execute("SELECT id FROM "+class_.table()+" WHERE "+" AND ".join(where))
     for row in c.fetchall():
         yield class_(row[0])
 
@@ -211,27 +224,29 @@ class Regression(DBTable):
   def __init__(self, id):
     DBTable.__init__(self, id)
 
+  def regressions(self):
+    c = awfy.db.cursor()
+    c.execute("SELECT id FROM awfy_regression_breakdown        \
+               WHERE regression_id = %s", (self.id,))
+    for row in c.fetchall():
+      if row[0] == 0:
+         continue
+      yield RegressionBreakdown(row[0])
+    c.execute("SELECT id FROM awfy_regression_score        \
+               WHERE regression_id = %s", (self.id,))
+    for row in c.fetchall():
+      if row[0] == 0:
+         continue
+      yield RegressionScore(row[0])
+
   @staticmethod
   def table():
     return "awfy_regression"
 
 class RegressionScore(DBTable):
-  def __init__(self, build, score):
-    c = awfy.db.cursor()
-    c.execute("SELECT id FROM "+self.table()+"        \
-               WHERE build_id = %s AND                \
-                     score_id = %s", (build.get("id"), score.get("id")))
-    row = c.fetchone()
-    id = row[0] if row else 0
-    DBTable.__init__(self, id)
 
-  def regression(self):
-    c = awfy.db.cursor()
-    c.execute("SELECT id FROM awfy_regression        \
-               WHERE build_id = %s", (self.get("build_id"),))
-    row = c.fetchone()
-    id = row[0] if row else 0
-    return Regression(id)
+  def score(self):
+	return self.get("score")
 
   @staticmethod
   def table():
@@ -271,22 +286,9 @@ class RegressionScoreNoise(DBTable):
     return "awfy_regression_score_noise"
 
 class RegressionBreakdown(DBTable):
-  def __init__(self, build, breakdown):
-    c = awfy.db.cursor()
-    c.execute("SELECT id FROM "+self.table()+"        \
-               WHERE build_id = %s AND                  \
-                     breakdown_id = %s", (build.get("id"), breakdown.get("id")))
-    row = c.fetchone()
-    id = row[0] if row else 0
-    DBTable.__init__(self, id)
 
-  def regression(self):
-    c = awfy.db.cursor()
-    c.execute("SELECT id FROM awfy_regression        \
-               WHERE build_id = %s", (self.get("build_id"),))
-    row = c.fetchone()
-    id = row[0] if row else 0
-    return Regression(id)
+  def score(self):
+	return self.get("breakdown")
 
   @staticmethod
   def table():
@@ -354,8 +356,9 @@ class Build(DBTable):
   def getScoresAndBreakdowns(self):
     scores = self.getScores()
     c = awfy.db.cursor()
-    c.execute("SELECT id                                                              \
+    c.execute("SELECT awfy_breakdown.id                                               \
                FROM awfy_breakdown                                                    \
+               LEFT JOIN awfy_score ON awfy_score.id = score_id                       \
                WHERE build_id = %s", (self.id,))
     for row in c.fetchall():
       scores.append(Breakdown(row[0]))
@@ -696,6 +699,14 @@ class Breakdown(RegressionTools):
   def table():
     return "awfy_breakdown"
 
+  def get(self, field):
+    if field == "build_id":
+      return Score(self.get("score_id")).get("build_id")
+    if field == "build":
+      return Score(self.get("score_id")).get("build")
+
+    return super(Breakdown, self).get(field)
+
   def sane(self):
     if self.get("suite_test_id") == 0:
         return False
@@ -721,7 +732,8 @@ class Breakdown(RegressionTools):
     c = awfy.db.cursor()
     c.execute("SELECT awfy_breakdown.id                                               \
                FROM awfy_breakdown                                                    \
-               INNER JOIN awfy_build ON awfy_build.id = awfy_breakdown.build_id       \
+               INNER JOIN awfy_score ON awfy_score.id = awfy_breakdown.score_id       \
+               INNER JOIN awfy_build ON awfy_build.id = awfy_score.build_id           \
                INNER JOIN awfy_run ON awfy_run.id = awfy_build.run_id                 \
                WHERE stamp > %s AND                                                   \
                      machine = %s AND                                                 \
@@ -742,7 +754,8 @@ class Breakdown(RegressionTools):
     c = awfy.db.cursor()
     c.execute("SELECT awfy_breakdown.id                                               \
                FROM awfy_breakdown                                                    \
-               INNER JOIN awfy_build ON awfy_build.id = awfy_breakdown.build_id       \
+               INNER JOIN awfy_score ON awfy_score.id = awfy_breakdown.score_id       \
+               INNER JOIN awfy_build ON awfy_build.id = awfy_score.build_id           \
                INNER JOIN awfy_run ON awfy_run.id = awfy_build.run_id                 \
                WHERE stamp < %s AND                                                   \
                      machine = %s AND                                                 \
@@ -764,7 +777,8 @@ class Breakdown(RegressionTools):
     c.execute("SELECT id                                                                    \
                FROM (SELECT awfy_breakdown.id, stamp                                        \
                      FROM awfy_breakdown                                                    \
-                     INNER JOIN awfy_build ON awfy_build.id = awfy_breakdown.build_id       \
+                     INNER JOIN awfy_score ON awfy_score.id = awfy_breakdown.score_id       \
+                     INNER JOIN awfy_build ON awfy_build.id = awfy_score.build_id           \
                      INNER JOIN awfy_run ON awfy_run.id = awfy_build.run_id                 \
                      WHERE machine = %s AND                                                 \
                            mode_id = %s AND                                                 \

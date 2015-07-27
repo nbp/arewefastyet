@@ -94,17 +94,18 @@ if (isset($_GET['version']))
     $version = GET_string('version');
 $suite_version_id = find_or_add_suite_version(GET_string('suite'), $version);
 if (GET_string('name') == '__total__') {
+    $extra_info = htmlspecialchars(GET_string('extra_info'), ENT_QUOTES);
     mysql_query("INSERT INTO awfy_score
-                 (build_id, suite_version_id, score)
+                 (build_id, suite_version_id, score, extra_info)
                  VALUES
-                 ($build, $suite_version_id, $time)")
+                 ($build, $suite_version_id, $time, '$extra_info')")
         or die("ERROR: " . mysql_error());
     print("id=" . mysql_insert_id());
 } else {
     $test_id = find_or_add_test($suite_version_id, GET_string('name'));
     mysql_query("INSERT INTO awfy_breakdown
-                 (score_id, build_id, suite_test_id, score)
+                 (score_id, suite_test_id, score)
                  VALUES
-                 ($score,$build, $test_id, $time)")
+                 ($score, $test_id, $time)")
         or die("ERROR: " . mysql_error());
 }

@@ -77,7 +77,8 @@ awfyApp.controller('pageCtrl', ['$scope', 'MasterService', '$http',
 							  {"name":"fixed"},
 							  {"name":"wontfix"},
 							  {"name":"noise"},
-							  {"name":"infrastructure"}];
+							  {"name":"infrastructure"},
+                              {"name":"triage"}];
 
 	$http.get('../auth.php?persona&check').then(function(data) {
       $scope.currentUser = data.data
@@ -104,6 +105,10 @@ awfyApp.config(['$routeProvider',
         controller: 'graphCtrl'
       }).
       when('/open/:bug', {
+        templateUrl: 'partials/search.html',
+        controller: 'searchCtrl'
+      }).
+      when('/bug/:bug', {
         templateUrl: 'partials/search.html',
         controller: 'searchCtrl'
       }).

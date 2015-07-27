@@ -59,9 +59,10 @@ function prev_($stamp, $machine, $mode, $suite, $limit = 1) {
 
 function prev_suite_test($stamp, $machine, $mode, $suite_test, $limit = 1) {
 	$limit = (int) $limit;
-    $query = "SELECT awfy_breakdown.id, score, cset
+    $query = "SELECT awfy_breakdown.id, awfy_breakdown.score, cset
               FROM awfy_breakdown
-              INNER JOIN awfy_build ON awfy_build.id = awfy_breakdown.build_id
+              INNER JOIN awfy_score ON awfy_score.id = score_id
+              INNER JOIN awfy_build ON awfy_build.id = awfy_score.build_id
               INNER JOIN awfy_run ON awfy_run.id = awfy_build.run_id
               WHERE stamp < $1 AND
                     stamp >= $2 AND
@@ -131,9 +132,10 @@ function next_($stamp, $machine, $mode, $suite, $limit = 1) {
 }
 
 function next_suite_test($stamp, $machine, $mode, $suite_test, $limit = 1) {
-    $query = mysql_query("SELECT awfy_breakdown.id, score, cset
+    $query = mysql_query("SELECT awfy_breakdown.id, awfy_breakdown.score, cset
 					      FROM awfy_breakdown
-					      INNER JOIN awfy_build ON awfy_build.id = awfy_breakdown.build_id
+					      INNER JOIN awfy_score ON awfy_score.id = score_id
+					      INNER JOIN awfy_build ON awfy_build.id = awfy_score.build_id
 					      INNER JOIN awfy_run ON awfy_run.id = awfy_build.run_id
 					      WHERE stamp > ".(int)$stamp." AND
 					       	 machine = ".(int)$machine." AND
@@ -157,3 +159,34 @@ function get($db, $id, $field) {
 	return $output[$field];
 }
 
+function imm_prev_suite_test($breakdown_id) {
+	$query = mysql_query("SELECT mode_id, machine, stamp, suite_test_id
+                          FROM `awfy_breakdown`
+                          LEFT JOIN awfy_score ON awfy_score.id = score_id
+                          LEFT JOIN awfy_build ON awfy_build.id = awfy_score.build_id
+                          LEFT JOIN awfy_run ON awfy_run.id = run_id
+                          WHERE awfy_breakdown.id = ".$breakdown_id) or die(mysql_error());
+    $data = mysql_fetch_assoc($query);
+
+	$prev = prev_suite_test($data["stamp"], $data["machine"],
+				            $data["mode_id"], $data["suite_test_id"]);
+
+	if (count($prev) == 1)
+		return $prev[0]["id"];
+	return 0;
+}
+
+function imm_prev_($score_id) {
+	$query = mysql_query("SELECT mode_id, machine, stamp, suite_version_id
+                          FROM `awfy_score`
+                          LEFT JOIN awfy_build ON awfy_build.id = build_id
+                          LEFT JOIN awfy_run ON awfy_run.id = run_id
+                          WHERE awfy_score.id = ".$score_id) or die(mysql_error());
+    $data = mysql_fetch_assoc($query);
+
+	$prev = prev_($data["stamp"], $data["machine"],
+			      $data["mode_id"], $data["suite_version_id"]);
+	if (count($prev) == 1)
+		return $prev[0]["id"];
+	return 0;
+}
