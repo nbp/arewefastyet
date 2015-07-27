@@ -14,6 +14,7 @@ changeset = sys.argv[1]
 configFile = sys.argv[2]
 engine = sys.argv[3]
 b2gDir = sys.argv[4]
+extraInfo = sys.argv[5]
 
 
 nbAttempts = 2
@@ -85,6 +86,6 @@ for suite in benchmarks.keys():
     tests = benchmarks[suite]['output']
     suiteversion = suite + " " + benchmarks[suite]['version']
     if tests is not None:
-        submit.AddTests(tests, suite, suiteversion, engine)
+        submit.AddTests(tests, suite, suiteversion, engine, extraInfo)
 
 submit.Finish(1)

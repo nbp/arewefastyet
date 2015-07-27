@@ -526,19 +526,21 @@ AWFY_DRIVER=$SHARED_SETUP_DIR/arewefastyet/driver/standalone.py
 
 benchAndUpload() {
   local engine=$(cat $AWFY_ENGINE_FILE)
+  local extraInfo=$(awfyExtraInfo)
 
   reportStage Benchmark and Upload
   setupForBenchmark
-  python $AWFY_DRIVER $(info) $AWFY_CONFIG  $engine $B2G_DIR 2>&1 | tee
+  python $AWFY_DRIVER $(info) $AWFY_CONFIG  $engine $B2G_DIR "$extraInfo" 2>&1 | tee
 }
 
 benchAndPrint() {
   local engine=$(cat $AWFY_ENGINE_FILE)
+  local extraInfo=$(awfyExtraInfo)
 
   reportStage Benchmark and Print
   setupForBenchmark
   sed 's/local=no/local=yes/' $AWFY_CONFIG > $LOCAL_AWFY_CONFIG
-  python $AWFY_DRIVER $(info) $LOCAL_AWFY_CONFIG $engine $B2G_DIR 2>&1 | tee
+  python $AWFY_DRIVER $(info) $LOCAL_AWFY_CONFIG $engine $B2G_DIR "$extraInfo" 2>&1 | tee
 }
 
 geckoGitInfo() {
@@ -552,6 +554,32 @@ info() {
   # into mercurial changeset. It is easier for Gecko's developers to
   # deal with mercurial changeset.
   commitToChangeset "$geckoGit"
+}
+
+# Use git-repo to spew the Sha1 of all commits which are checked out.
+allRepoInfo() {
+    ./repo manifest -ro -
+}
+
+# Summarize the git-repo info to only include gecko and gaia git commits, and
+# format the output in a single line which can also be interpreted both as a
+# json / python.
+awfyExtraInfo() {
+    allRepoInfo | awk '
+      BEGIN { str=""; }
+      /gaia|gecko/ {
+          rev[0] = "";
+          name[0] = "";
+          split($0, rev, "revision=");
+          split(rev[2], rev);
+          split($0, name, "path=");
+          if (length(name) != 2)
+              split($0, name, "name=");
+          split(name[2], name);
+          str = (str ? str "," : "") name[1] ":" rev[1];
+      }
+      END { print("{" str "}"); }
+    '
 }
 
 ##
