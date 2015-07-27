@@ -408,11 +408,13 @@ setupHostForBenchmark() {
       fi
 
       if test -e ./requirements.txt; then
+          cat ./requirements.txt
 	  mv ./requirements.txt ./requirements.txt.old
 	  sed '
-            s/marionette_client==.*/marionette_client/;
+            s/^\(marionette.*\)[<=>][<=>]\([0-9.]*\)/\1>=\2/;
             s/^\(moz.*\)[<=>][<=>][0-9.]*/\1/;
           ' ./requirements.txt.old > ./requirements.txt
+          cat ./requirements.txt
       fi
 
       while true; do
