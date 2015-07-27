@@ -400,6 +400,13 @@ setupHostForBenchmark() {
   for path in $setupPies; do
       cd $(dirname $path);
 
+      # Somebody thought this was a good idea to name a file setup.py,  but
+      # not for installing any python software.  This lines filter any script
+      # which does not import a setup function.
+      if ! grep 'import setup' ./setup.py 2>/dev/null </dev/null; then
+          continue;
+      fi
+
       if test -e ./requirements.txt; then
 	  mv ./requirements.txt ./requirements.txt.old
 	  sed '
