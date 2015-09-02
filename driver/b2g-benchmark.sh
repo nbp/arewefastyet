@@ -403,7 +403,7 @@ setupHostForBenchmark() {
   # the harness, thus we will not flood pypi servers.
   pip install --no-index --find-links http://pypi.pub.build.mozilla.org/pub/ \
       --install-option="--prefix=$INSTALL_DIR" \
-      $(cat $PERSO_SETUP_DIR/gaia-ui-tests.path)/gaia-ui-tests
+      $B2G_DIR/$(cat $PERSO_SETUP_DIR/gaia-ui-tests.path)/gaia-ui-tests
 }
 
 countRemoteHosts() {
