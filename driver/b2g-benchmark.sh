@@ -898,11 +898,12 @@ call() {
   "$@"
 }
 
-if test "$1" = checkoutByGeckoChangeset -o "$1" = saveForLater -o "$1" = changesetToCommit -o "$1" = commitToChangeset -o "$1" = call -o "$1" = runBenchmark; then
-  # Used for testing.
-  "$@";
-else
-  for arg; do
-    $arg ;
-  done;
-fi
+case "$1" in
+  (checkoutByGeckoChangeset|saveForLater|changesetToCommit|commitToChangeset|call|runBenchmark)
+    # Used for testing.
+    "$@";;
+  (*)
+    for arg; do
+      $arg ;
+    done;;
+esac
