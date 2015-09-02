@@ -24,6 +24,8 @@ export PATH=$INSTALL_DIR/bin:$PATH
 # Prevent the generation of any bytecode by exporting the following env var.
 export PYTHONDONTWRITEBYTECODE=1
 
+# Make sure that we do not waste bandwidth when we already have a local copy of the packages.
+export PIP_DOWNLOAD_CACHE=$HOME/.pip_download_cache
 
 debug() {
   set -xe
