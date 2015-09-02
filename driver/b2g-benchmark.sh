@@ -520,7 +520,9 @@ info() {
 
 # Use git-repo to spew the Sha1 of all commits which are checked out.
 allRepoInfo() {
+    cd $B2G_DIR
     ./repo manifest -ro -
+    cd -
 }
 
 # Summarize the git-repo info to only include gecko and gaia git commits, and
