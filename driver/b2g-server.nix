@@ -55,6 +55,13 @@ in
     };
   };
 
+  # Repo sync has hook to determine if this is wise or not to pack the
+  # git repositories.  The problem is that these hooks are checking
+  # for explicit binaries which are not installed, and for path
+  # created by modules which are only necessary if a battery is
+  # present.
+  boot.kernelModules = [ "battery" ];
+
   # Detect the device in normal execution mode and also when it is flashed.
   services.udev.extraRules = ''
     SUBSYSTEM=="usb", ATTRS{idVendor}=="19d2", MODE="0666"
