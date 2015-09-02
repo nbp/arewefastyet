@@ -394,54 +394,16 @@ setupHostForBenchmark() {
   mkdir -p $INSTALL_DIR
   mkdir -p $INSTALL_DIR/lib/python2.7/site-packages
 
-  # Install all marionette & gaia-ui-tests updates
-  local setupPies="$(
-      find $B2G_DIR/perso/python-libraries/ -name setup.py
-      find $B2G_DIR/gecko/testing/ -name setup.py;
-      find $B2G_DIR/$(cat $PERSO_SETUP_DIR/gaia-ui-tests.path)/gaia-ui-tests/ -name setup.py
-  )"
-
-  for path in $setupPies; do
-      cd $(dirname $path);
-
-      # Somebody thought this was a good idea to name a file setup.py,  but
-      # not for installing any python software.  This lines filter any script
-      # which does not import a setup function.
-      if ! grep 'import setup' ./setup.py 2>/dev/null </dev/null; then
-          continue;
-      fi
-
-      if test -e ./requirements.txt; then
-          cat ./requirements.txt
-	  mv ./requirements.txt ./requirements.txt.old
-	  sed '
-            s/^\(marionette.*\)[<=>][<=>]\([0-9.]*\)/\1>=\2/;
-            s/^\(moz.*\)[<=>][<=>][0-9.]*/\1/;
-          ' ./requirements.txt.old > ./requirements.txt
-          cat ./requirements.txt
-      fi
-
-      while true; do
-          python setup.py develop --prefix=$INSTALL_DIR -N && break || true;
-	  python setup.py install --prefix=$INSTALL_DIR && break || true;
-
-          # Some error are caused by the fact that the requirement
-          # file no longer have any version filter.  Copy the old
-          # file, and test again.
-	  mv ./requirements.txt.old ./requirements.txt
-          python setup.py develop --prefix=$INSTALL_DIR -N && break || true;
-	  python setup.py install --prefix=$INSTALL_DIR && break || true;
-
-	  reportStage !!! Unable to install $path
-	  exit 1;
-      done
-
-      if test -e ./requirements.txt; then
-	  mv ./requirements.txt.old ./requirements.txt
-      fi
-
-      echo $path Installed
-  done
+  # Hum ... I don't like to rely on remote services to handle things which can
+  # be solved locally, but in this case, we seems to require at least 3
+  # different versions of gecko if we ever want to build the gaia-ui-tests
+  # against the proper versions of its dependencies.
+  #
+  # Hopefully, Mozilla has a mirror of the packages which are needed for running
+  # the harness, thus we will not flood pypi servers.
+  pip install --no-index --find-links http://pypi.pub.build.mozilla.org/pub/ \
+      --install-option="--prefix=$INSTALL_DIR" \
+      $(cat $PERSO_SETUP_DIR/gaia-ui-tests.path)/gaia-ui-tests
 }
 
 countRemoteHosts() {
