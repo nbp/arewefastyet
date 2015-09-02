@@ -564,7 +564,7 @@ octane() {
 octane2() {
   reportStage Run Octane 2.0
 
-  if false; then
+  if test -n "$DUMMY_RESULTS"; then
       cat <<EOF
 Shell-like octane results:
 Richards: 1060
@@ -596,7 +596,7 @@ EOF
 sunspider() {
   reportStage Run Sunspider
 
-  if false; then
+  if test -n "$DUMMY_RESULTS"; then
       cat <<EOF
 Shell-like sunspider results:
 ===============================================
@@ -635,7 +635,7 @@ EOF
 kraken() {
   reportStage Run Kraken
 
-  if false; then
+  if test -n "$DUMMY_RESULTS"; then
       cat <<EOF
 Shell-like kraken results:
 ===============================================
@@ -900,5 +900,5 @@ if test "$1" = checkoutByGeckoChangeset -o "$1" = saveForLater -o "$1" = changes
 else
   for arg; do
     $arg ;
-  done
+  done;
 fi
