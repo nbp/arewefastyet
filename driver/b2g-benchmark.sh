@@ -13,6 +13,8 @@ export ANDROIDFS_DIR=$(dirname $B2G_DIR)/backup-${DEVICE_NAME}
 
 SHARED_SETUP_DIR=${SHARED_SETUP_DIR-/home/awsa}
 PERSO_SETUP_DIR=${PERSO_SETUP_DIR:-$B2G_DIR/perso}
+export TMPDIR=$PERSO_SETUP_DIR/tmp
+mkdir -p $TMPDIR
 
 # Needed by gaia-ui-tests
 GAIA_UI_TESTS=$PERSO_SETUP_DIR/gaia-ui-tests
